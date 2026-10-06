@@ -4,6 +4,7 @@ import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Students from './pages/Students.jsx';
+import PendingApprovals from './pages/PendingApprovals.jsx';
 import Posts from './pages/Posts.jsx';
 import Comments from './pages/Comments.jsx';
 import Reports from './pages/Reports.jsx';
@@ -36,6 +37,7 @@ export default function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="students" element={<Students />} />
+        <Route path="pending-approvals" element={<PendingApprovals />} />
         <Route path="posts" element={<Posts />} />
         <Route path="comments" element={<Comments />} />
         <Route path="reports" element={<Reports />} />

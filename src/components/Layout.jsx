@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 
 const links = [
   { to: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { to: '/pending-approvals', label: 'Pending Approvals', icon: '🕓' },
   { to: '/students', label: 'Students', icon: '👥' },
   { to: '/posts', label: 'Posts', icon: '📝' },
   { to: '/comments', label: 'Comments', icon: '💬' },
