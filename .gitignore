@@ -7,3 +7,11 @@ dist/
 .DS_Store
 .vite/
 .netlify/
+
+# Capacitor / Android
+android/.gradle/
+android/local.properties
+android/app/build/
+android/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
