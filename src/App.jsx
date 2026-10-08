@@ -9,10 +9,11 @@ import Posts from './pages/Posts.jsx';
 import Comments from './pages/Comments.jsx';
 import Reports from './pages/Reports.jsx';
 import Moderation from './pages/Moderation.jsx';
+import Settings from './pages/Settings.jsx';
+import AIAssistant from './pages/AIAssistant.jsx';
 import Announcements from './pages/Announcements.jsx';
 import Events from './pages/Events.jsx';
 import Groups from './pages/Groups.jsx';
-import Analytics from './pages/Analytics.jsx';
 import Admins from './pages/Admins.jsx';
 import AuditLogs from './pages/AuditLogs.jsx';
 import Payments from './pages/Payments.jsx';
@@ -43,10 +44,11 @@ export default function App() {
         <Route path="comments" element={<Comments />} />
         <Route path="reports" element={<Reports />} />
         <Route path="moderation" element={<Moderation />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="ai" element={<AIAssistant />} />
         <Route path="announcements" element={<Announcements />} />
         <Route path="events" element={<Events />} />
         <Route path="groups" element={<Groups />} />
-        <Route path="analytics" element={<Analytics />} />
         <Route path="admins" element={<Admins />} />
         <Route path="audit-logs" element={<AuditLogs />} />
         <Route path="payments" element={<Payments />} />

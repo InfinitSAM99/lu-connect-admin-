@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { useTheme } from '../context/ThemeContext.jsx';
 import {
-  DashboardIcon, ClockIcon, UsersIcon, FileTextIcon, MessageIcon,
+  DashboardIcon, ChartIcon, ClockIcon, UsersIcon, FileTextIcon, MessageIcon,
   AlertTriangleIcon, MegaphoneIcon, CalendarIcon, BuildingIcon,
-  ChartIcon, ShieldIcon, ClipboardIcon, CreditCardIcon,
-  SunIcon, MoonIcon, MenuIcon, LogoutIcon, XIcon, ChevronRightIcon,
+  ShieldIcon, ClipboardIcon, CreditCardIcon,
+  MenuIcon, LogoutIcon, XIcon,
 } from './Icons.jsx';
 
 const SECTIONS = [
@@ -14,15 +13,22 @@ const SECTIONS = [
     title: 'Overview',
     links: [
       { to: '/dashboard', label: 'Dashboard', icon: DashboardIcon },
+      { to: '/ai', label: 'AI Assistant', icon: ChartIcon },
     ],
   },
   {
     title: 'Moderation',
     links: [
-      { to: '/pending-approvals', label: 'Pending Approvals', icon: ClockIcon },
       { to: '/moderation', label: 'AI Moderation', icon: AlertTriangleIcon },
-      { to: '/students', label: 'Students', icon: UsersIcon },
       { to: '/reports', label: 'Reports', icon: AlertTriangleIcon },
+      { to: '/pending-approvals', label: 'Pending Approvals', icon: ClockIcon },
+    ],
+  },
+  {
+    title: 'People',
+    links: [
+      { to: '/students', label: 'Students', icon: UsersIcon },
+      { to: '/admins', label: 'Admins', icon: ShieldIcon, superOnly: true },
     ],
   },
   {
@@ -36,41 +42,35 @@ const SECTIONS = [
     ],
   },
   {
-    title: 'Insights',
+    title: 'System',
     links: [
-      { to: '/analytics', label: 'Analytics', icon: ChartIcon },
-    ],
-  },
-  {
-    title: 'Management',
-    links: [
-      { to: '/admins', label: 'Admins', icon: ShieldIcon, superOnly: true },
-      { to: '/audit-logs', label: 'Audit Logs', icon: ClipboardIcon },
       { to: '/payments', label: 'Payments', icon: CreditCardIcon },
+      { to: '/settings', label: 'Settings', icon: ShieldIcon },
+      { to: '/audit-logs', label: 'Audit Logs', icon: ClipboardIcon },
     ],
   },
 ];
 
 const PAGE_TITLES = {
   '/dashboard': 'Dashboard',
-  '/pending-approvals': 'Pending Approvals',
+  '/ai': 'AI Assistant',
   '/moderation': 'AI Moderation',
+  '/reports': 'Reports',
+  '/pending-approvals': 'Pending Approvals',
   '/students': 'Students',
+  '/admins': 'Admins',
   '/posts': 'Posts',
   '/comments': 'Comments',
-  '/reports': 'Reports',
   '/announcements': 'Announcements',
   '/events': 'Events',
   '/groups': 'Groups',
-  '/analytics': 'Analytics',
-  '/admins': 'Admins',
-  '/audit-logs': 'Audit Logs',
   '/payments': 'Payments',
+  '/settings': 'Settings',
+  '/audit-logs': 'Audit Logs',
 };
 
 export default function Layout() {
   const { profile, signOut, isSuperAdmin } = useAuth();
-  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -161,14 +161,6 @@ export default function Layout() {
           <div className="admin-topbar-title">{currentTitle}</div>
 
           <div style={{ flex: 1 }} />
-
-          <button
-            className="btn btn-ghost"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            title="Toggle theme"
-          >
-            {theme === 'dark' ? <SunIcon width={18} height={18} /> : <MoonIcon width={18} height={18} />}
-          </button>
 
           <div style={{ position: 'relative' }}>
             <button

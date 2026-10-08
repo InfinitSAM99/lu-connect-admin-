@@ -1,33 +1,43 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
-  UsersIcon, FileTextIcon, MessageIcon, BuildingIcon,
-  CalendarIcon, AlertTriangleIcon, MegaphoneIcon, ShieldIcon,
-  ChevronRightIcon,
-} from '../components/Icons.jsx';
-import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis,
-  Tooltip, ResponsiveContainer, CartesianGrid,
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts';
 
 const tooltipStyle = {
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
+  background: '#0a0a0a',
+  border: '1px solid #1f1f1f',
   borderRadius: 8,
   fontSize: 12,
-  color: 'var(--text)',
+  color: '#f2f3f5',
+};
+
+const CATEGORY_COLORS = {
+  nudity: '#ec4899',
+  hate: '#dc2626',
+  harassment: '#f97316',
+  spam: '#eab308',
+  self_harm: '#8b5cf6',
+  violence: '#b91c1c',
+  other: '#6b7280',
+  none: '#6b7280',
 };
 
 export default function Dashboard() {
-  const navigate = useNavigate();
-  const [stats, setStats] = useState({});
-  const [activity, setActivity] = useState([]);
+  const [onlineNow, setOnlineNow] = useState(0);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalPosts, setTotalPosts] = useState(0);
+  const [totalReports, setTotalReports] = useState(0);
+  const [totalComments, setTotalComments] = useState(0);
+  const [activeToday, setActiveToday] = useState(0);
   const [signupsData, setSignupsData] = useState([]);
   const [hourlyData, setHourlyData] = useState([]);
   const [postsData, setPostsData] = useState([]);
-  const [onlineNow, setOnlineNow] = useState(0);
-  const [activeToday, setActiveToday] = useState(0);
+  const [commentsData, setCommentsData] = useState([]);
+  const [activeUsersData, setActiveUsersData] = useState([]);
+  const [reportsData, setReportsData] = useState([]);
+  const [flagsByCategory, setFlagsByCategory] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,77 +49,78 @@ export default function Dashboard() {
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
       const [
-        students, posts, comments, connections, groups, events,
-        reports, announcements, suspended,
         online, activeT,
-        recentSignups, recentPosts, recentReports,
-        allSignups, allActivity, allPosts,
+        allSignups, allActivity,
+        allPosts, allComments, allReports, allFlags,
+        totalU, totalP, totalR, totalC,
       ] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_deleted', false),
-        supabase.from('comments').select('*', { count: 'exact', head: true }).eq('is_deleted', false),
-        supabase.from('connections').select('*', { count: 'exact', head: true }).eq('status', 'accepted'),
-        supabase.from('groups').select('*', { count: 'exact', head: true }),
-        supabase.from('events').select('*', { count: 'exact', head: true }),
-        supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('announcements').select('*', { count: 'exact', head: true }).eq('is_published', true),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_suspended', true),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('last_seen', twoMinAgo),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('last_seen', todayStart),
-        supabase.from('profiles').select('id, full_name, created_at').order('created_at', { ascending: false }).limit(3),
-        supabase.from('posts').select('id, content, created_at, profiles:author_id(full_name)').eq('is_deleted', false).order('created_at', { ascending: false }).limit(3),
-        supabase.from('reports').select('id, reason, created_at').eq('status', 'pending').order('created_at', { ascending: false }).limit(3),
         supabase.from('profiles').select('created_at').gte('created_at', thirtyDaysAgo),
-        supabase.from('profiles').select('last_seen').gte('last_seen', dayAgo),
+        supabase.from('profiles').select('last_seen').gte('last_seen', thirtyDaysAgo),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_deleted', false),
+        supabase.from('reports').select('*', { count: 'exact', head: true }),
+        supabase.from('comments').select('*', { count: 'exact', head: true }).eq('is_deleted', false),
         supabase.from('posts').select('created_at').eq('is_deleted', false).gte('created_at', thirtyDaysAgo),
+        supabase.from('comments').select('created_at').eq('is_deleted', false).gte('created_at', thirtyDaysAgo),
+        supabase.from('reports').select('created_at').gte('created_at', thirtyDaysAgo),
+        supabase.from('moderation_flags').select('ai_category').gte('created_at', thirtyDaysAgo),
       ]);
 
-      setStats({
-        students: students.count || 0,
-        posts: posts.count || 0,
-        comments: comments.count || 0,
-        connections: connections.count || 0,
-        groups: groups.count || 0,
-        events: events.count || 0,
-        reports: reports.count || 0,
-        announcements: announcements.count || 0,
-        suspended: suspended.count || 0,
-      });
-
       setOnlineNow(online.count || 0);
+      setTotalUsers(totalU.count || 0);
+      setTotalPosts(totalP.count || 0);
+      setTotalReports(totalR.count || 0);
+      setTotalComments(totalC.count || 0);
       setActiveToday(activeT.count || 0);
 
-      // Signups chart
-      const days = [];
-      const signupMap = {};
+      // Buckets helper
+      const buildDayBuckets = (sourceData, label = 'count') => {
+        const days = [];
+        const map = {};
+        for (let i = 29; i >= 0; i--) {
+          const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+          const key = d.toISOString().slice(0, 10);
+          days.push({ date: key, label: `${d.getDate()}/${d.getMonth() + 1}`, [label]: 0 });
+          map[key] = days[days.length - 1];
+        }
+        (sourceData || []).forEach((row) => {
+          const key = row.created_at?.slice(0, 10);
+          if (key && map[key]) map[key][label] += 1;
+        });
+        return days;
+      };
+
+      // Signups
+      setSignupsData(buildDayBuckets(allSignups.data, 'count'));
+
+      // Posts
+      setPostsData(buildDayBuckets(allPosts.data, 'count'));
+
+      // Comments
+      setCommentsData(buildDayBuckets(allComments.data, 'count'));
+
+      // Reports
+      setReportsData(buildDayBuckets(allReports.data, 'count'));
+
+      // Active users/day — bucket last_seen by day
+      const activeDays = [];
+      const activeMap = {};
       for (let i = 29; i >= 0; i--) {
         const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
         const key = d.toISOString().slice(0, 10);
-        days.push({ date: key, label: `${d.getDate()}/${d.getMonth() + 1}`, count: 0 });
-        signupMap[key] = days[days.length - 1];
+        activeDays.push({ date: key, label: `${d.getDate()}/${d.getMonth() + 1}`, count: 0 });
+        activeMap[key] = activeDays[activeDays.length - 1];
       }
-      (allSignups.data || []).forEach((row) => {
-        const key = row.created_at?.slice(0, 10);
-        if (key && signupMap[key]) signupMap[key].count += 1;
+      (allActivity.data || []).forEach((row) => {
+        if (!row.last_seen) return;
+        const key = row.last_seen.slice(0, 10);
+        if (activeMap[key]) activeMap[key].count += 1;
       });
-      setSignupsData(days);
+      setActiveUsersData(activeDays);
 
-      // Posts chart
-      const postDays = [];
-      const postMap = {};
-      for (let i = 29; i >= 0; i--) {
-        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-        const key = d.toISOString().slice(0, 10);
-        postDays.push({ date: key, label: `${d.getDate()}/${d.getMonth() + 1}`, count: 0 });
-        postMap[key] = postDays[postDays.length - 1];
-      }
-      (allPosts.data || []).forEach((row) => {
-        const key = row.created_at?.slice(0, 10);
-        if (key && postMap[key]) postMap[key].count += 1;
-      });
-      setPostsData(postDays);
-
-      // Hourly activity
+      // Hourly (last 24h)
       const hourBuckets = [];
       for (let i = 23; i >= 0; i--) {
         const d = new Date(now.getTime() - i * 60 * 60 * 1000);
@@ -126,34 +137,16 @@ export default function Dashboard() {
       });
       setHourlyData(hourBuckets);
 
-      // Activity feed
-      const items = [];
-      (recentSignups.data || []).forEach((s) => {
-        items.push({
-          id: `s-${s.id}`,
-          type: 'signup',
-          at: s.created_at,
-          text: `${s.full_name || 'A student'} signed up`,
-        });
+      // Flags by category (pie)
+      const catMap = {};
+      (allFlags.data || []).forEach((f) => {
+        const cat = f.ai_category || 'other';
+        catMap[cat] = (catMap[cat] || 0) + 1;
       });
-      (recentPosts.data || []).forEach((p) => {
-        items.push({
-          id: `p-${p.id}`,
-          type: 'post',
-          at: p.created_at,
-          text: `${p.profiles?.full_name || 'Someone'} posted "${(p.content || '').slice(0, 40) || '(media)'}"`,
-        });
-      });
-      (recentReports.data || []).forEach((r) => {
-        items.push({
-          id: `r-${r.id}`,
-          type: 'report',
-          at: r.created_at,
-          text: `New report: "${(r.reason || '').slice(0, 40)}"`,
-        });
-      });
-      items.sort((a, b) => new Date(b.at) - new Date(a.at));
-      setActivity(items.slice(0, 6));
+      const catList = Object.entries(catMap)
+        .map(([name, value]) => ({ name, value, color: CATEGORY_COLORS[name] || '#6b7280' }))
+        .filter((c) => c.value > 0);
+      setFlagsByCategory(catList);
 
       setLoading(false);
     };
@@ -162,29 +155,60 @@ export default function Dashboard() {
 
   if (loading) return <div className="state">Loading dashboard…</div>;
 
-  const summaryStats = [
-    { icon: UsersIcon, label: 'Total Users', value: stats.students, accent: 'brand' },
-    { icon: FileTextIcon, label: 'Total Posts', value: stats.posts, accent: 'info' },
-    { icon: AlertTriangleIcon, label: 'Reports', value: stats.reports, accent: 'warning' },
-  ];
-
-  const secondaryStats = [
-    { icon: MessageIcon, label: 'Comments', value: stats.comments },
-    { icon: UsersIcon, label: 'Connections', value: stats.connections },
-    { icon: BuildingIcon, label: 'Groups', value: stats.groups },
-    { icon: CalendarIcon, label: 'Events', value: stats.events },
-    { icon: MegaphoneIcon, label: 'Announcements', value: stats.announcements },
-    { icon: ShieldIcon, label: 'Suspended', value: stats.suspended },
-  ];
+  const hasFlags = flagsByCategory.length > 0;
 
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Dashboard Overview</h1>
+        <h1 className="page-title">Dashboard</h1>
         <p className="page-subtitle">Live platform statistics</p>
       </div>
 
-      {/* Live status card */}
+      {/* Big unboxed totals */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+          gap: 24,
+          marginBottom: 28,
+          padding: '8px 4px',
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', lineHeight: 1, letterSpacing: -1 }}>
+            {totalUsers}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>
+            Total Users
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', lineHeight: 1, letterSpacing: -1 }}>
+            {totalPosts}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>
+            Total Posts
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', lineHeight: 1, letterSpacing: -1 }}>
+            {totalReports}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>
+            Reports
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', lineHeight: 1, letterSpacing: -1 }}>
+            {totalComments}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>
+            Comments
+          </div>
+        </div>
+      </div>
+
+      {/* Live row */}
       <div className="card live-card">
         <div className="live-row">
           <span className="live-dot" />
@@ -198,22 +222,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 3 top stats — one card, internal dividers */}
-      <div className="card big-stats-card">
-        {summaryStats.map((s, i) => {
-          const Icon = s.icon;
-          return (
-            <div key={s.label} className={'big-stat' + (i < summaryStats.length - 1 ? ' with-divider' : '')}>
-              <div className={'big-stat-icon accent-' + s.accent}>
-                <Icon width={20} height={20} />
-              </div>
-              <div className="big-stat-value">{s.value.toLocaleString()}</div>
-              <div className="big-stat-label">{s.label}</div>
-            </div>
-          );
-        })}
-      </div>
-
       {/* Chart 1 — Signups */}
       <div className="card chart-card">
         <div className="chart-head">
@@ -222,35 +230,21 @@ export default function Dashboard() {
         <div className="chart-body">
           <ResponsiveContainer width="100%" height={190}>
             <LineChart data={signupsData} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 10, fill: 'var(--text-3)' }}
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }}
                 interval={Math.max(0, Math.floor(signupsData.length / 5) - 1)}
-                axisLine={{ stroke: 'var(--border)' }}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: 'var(--text-3)' }}
-                allowDecimals={false}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: 'var(--text-2)' }} />
-              <Line
-                type="monotone"
-                dataKey="count"
-                stroke="var(--brand)"
-                strokeWidth={2.5}
-                dot={false}
-                activeDot={{ r: 5, fill: 'var(--brand)' }}
-              />
+                axisLine={{ stroke: '#1f1f1f' }} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false}
+                axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Line type="monotone" dataKey="count" stroke="#ef4444"
+                strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#ef4444' }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Chart 2 — Activity by hour */}
+      {/* Chart 2 — Activity 24h */}
       <div className="card chart-card">
         <div className="chart-head">
           <div className="chart-title">Activity · Last 24 Hours</div>
@@ -258,32 +252,19 @@ export default function Dashboard() {
         <div className="chart-body">
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={hourlyData} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 10, fill: 'var(--text-3)' }}
-                interval={3}
-                axisLine={{ stroke: 'var(--border)' }}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: 'var(--text-3)' }}
-                allowDecimals={false}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                labelStyle={{ color: 'var(--text-2)' }}
-                cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-              />
-              <Bar dataKey="count" fill="var(--brand)" radius={[4, 4, 0, 0]} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }}
+                interval={3} axisLine={{ stroke: '#1f1f1f' }} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false}
+                axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+              <Bar dataKey="count" fill="#ef4444" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Chart 3 — Posts per day */}
+      {/* Chart 3 — Posts */}
       <div className="card chart-card">
         <div className="chart-head">
           <div className="chart-title">Posts · Last 30 Days</div>
@@ -291,99 +272,118 @@ export default function Dashboard() {
         <div className="chart-body">
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={postsData} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 10, fill: 'var(--text-3)' }}
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }}
                 interval={Math.max(0, Math.floor(postsData.length / 5) - 1)}
-                axisLine={{ stroke: 'var(--border)' }}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: 'var(--text-3)' }}
-                allowDecimals={false}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                labelStyle={{ color: 'var(--text-2)' }}
-                cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-              />
+                axisLine={{ stroke: '#1f1f1f' }} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false}
+                axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
               <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Platform totals — all secondary stats in one card */}
-      <div className="card platform-totals">
+      {/* Chart 4 — Comments */}
+      <div className="card chart-card">
         <div className="chart-head">
-          <div className="chart-title">Platform Totals</div>
+          <div className="chart-title">Comments · Last 30 Days</div>
         </div>
-        <div className="totals-body">
-          {secondaryStats.map((s) => {
-            const Icon = s.icon;
-            return (
-              <div key={s.label} className="totals-row">
-                <div className="totals-icon"><Icon width={16} height={16} /></div>
-                <div className="totals-label">{s.label}</div>
-                <div className="totals-value">{s.value.toLocaleString()}</div>
-              </div>
-            );
-          })}
+        <div className="chart-body">
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={commentsData} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }}
+                interval={Math.max(0, Math.floor(commentsData.length / 5) - 1)}
+                axisLine={{ stroke: '#1f1f1f' }} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false}
+                axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+              <Bar dataKey="count" fill="#22c55e" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Recent Activity */}
+      {/* Chart 5 — Active users/day */}
       <div className="card chart-card">
         <div className="chart-head">
-          <div className="chart-title">Recent Activity</div>
+          <div className="chart-title">Active Users · Last 30 Days</div>
         </div>
-        <div className="activity-body">
-          {activity.length === 0 && (
-            <div className="activity-empty">Nothing yet.</div>
-          )}
-          {activity.map((a) => (
-            <div key={a.id} className="activity-item">
-              <span
-                className={
-                  'activity-dot' +
-                  (a.type === 'signup' ? ' dot-brand' : a.type === 'report' ? ' dot-warning' : ' dot-info')
-                }
-              />
-              <span className="activity-text">{a.text}</span>
+        <div className="chart-body">
+          <ResponsiveContainer width="100%" height={190}>
+            <LineChart data={activeUsersData} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }}
+                interval={Math.max(0, Math.floor(activeUsersData.length / 5) - 1)}
+                axisLine={{ stroke: '#1f1f1f' }} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false}
+                axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Line type="monotone" dataKey="count" stroke="#a855f7"
+                strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#a855f7' }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Chart 6 — Reports */}
+      <div className="card chart-card">
+        <div className="chart-head">
+          <div className="chart-title">Reports · Last 30 Days</div>
+        </div>
+        <div className="chart-body">
+          <ResponsiveContainer width="100%" height={190}>
+            <LineChart data={reportsData} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }}
+                interval={Math.max(0, Math.floor(reportsData.length / 5) - 1)}
+                axisLine={{ stroke: '#1f1f1f' }} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false}
+                axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Line type="monotone" dataKey="count" stroke="#f59e0b"
+                strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#f59e0b' }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Chart 7 — Flags by category (pie) */}
+      <div className="card chart-card">
+        <div className="chart-head">
+          <div className="chart-title">Flags by Category · Last 30 Days</div>
+        </div>
+        <div className="chart-body">
+          {!hasFlags && (
+            <div style={{ padding: 24, textAlign: 'center', color: '#6d7382', fontSize: 13 }}>
+              No flags in the last 30 days.
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="card chart-card">
-        <div className="chart-head">
-          <div className="chart-title">Quick Actions</div>
-        </div>
-        <div className="actions-body">
-          <button className="quick-action" onClick={() => navigate('/pending-approvals')}>
-            <UsersIcon width={16} height={16} />
-            <span style={{ flex: 1 }}>Pending approvals</span>
-            <ChevronRightIcon width={16} height={16} />
-          </button>
-          <button className="quick-action" onClick={() => navigate('/reports')}>
-            <AlertTriangleIcon width={16} height={16} />
-            <span style={{ flex: 1 }}>Review reports</span>
-            <ChevronRightIcon width={16} height={16} />
-          </button>
-          <button className="quick-action" onClick={() => navigate('/announcements')}>
-            <MegaphoneIcon width={16} height={16} />
-            <span style={{ flex: 1 }}>Send announcement</span>
-            <ChevronRightIcon width={16} height={16} />
-          </button>
-          <button className="quick-action" onClick={() => navigate('/students')}>
-            <UsersIcon width={16} height={16} />
-            <span style={{ flex: 1 }}>Manage students</span>
-            <ChevronRightIcon width={16} height={16} />
-          </button>
+          )}
+          {hasFlags && (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={flagsByCategory}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  innerRadius={45}
+                  paddingAngle={3}
+                  label={(entry) => `${entry.name}: ${entry.value}`}
+                  labelLine={false}
+                >
+                  {flagsByCategory.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={tooltipStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
     </div>

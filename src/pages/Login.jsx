@@ -12,7 +12,8 @@ export default function Login() {
 
   const submit = async (e) => {
     e.preventDefault();
-    setErr(''); setLoading(true);
+    setErr('');
+    setLoading(true);
     const { error } = await signIn(email, password);
     setLoading(false);
     if (error) setErr(error.message);
@@ -20,19 +21,55 @@ export default function Login() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <form onSubmit={submit} className="card" style={{ width: '100%', maxWidth: 400, padding: 28 }}>
-        <div className="brand" style={{ fontSize: 22, textAlign: 'center', marginBottom: 6 }}>LU CONNECT Admin</div>
-        <p style={{ textAlign: 'center', color: 'var(--text-2)', marginTop: 0, marginBottom: 24, fontSize: 13 }}>
-          Authorized personnel only
-        </p>
+    <div className="login-shell">
+      <form onSubmit={submit} className="login-card">
+        <div className="login-brand">LU CONNECT</div>
+        <div className="login-brand" style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-2)', letterSpacing: 2, marginBottom: 4 }}>
+          ADMIN
+        </div>
+        <div className="login-sub">Authorized personnel only</div>
 
-        {err && <div style={{ background: 'var(--brand-soft)', color: 'var(--brand)', padding: 10, borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{err}</div>}
+        {err && (
+          <div
+            style={{
+              background: 'var(--danger-soft)',
+              color: 'var(--brand)',
+              padding: 10,
+              borderRadius: 8,
+              fontSize: 13,
+              marginBottom: 14,
+              border: '1px solid var(--brand)',
+            }}
+          >
+            {err}
+          </div>
+        )}
 
-        <input className="input" type="email" placeholder="Email" required value={email} onChange={(e) => setEmail(e.target.value)} style={{ marginBottom: 10 }} />
-        <input className="input" type="password" placeholder="Password" required value={password} onChange={(e) => setPassword(e.target.value)} style={{ marginBottom: 16 }} />
+        <div className="login-field">
+          <input
+            className="input"
+            type="email"
+            placeholder="Email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+          />
+        </div>
 
-        <button className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
+        <div className="login-field">
+          <input
+            className="input"
+            type="password"
+            placeholder="Password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+        </div>
+
+        <button className="btn btn-primary login-submit" disabled={loading}>
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
       </form>

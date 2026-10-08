@@ -35,3 +35,11 @@ export const TrendUpIcon = (p) => <I {...p}><path d="m22 7-8.5 8.5-5-5L2 17"/><p
 export const TrendDownIcon = (p) => <I {...p}><path d="m22 17-8.5-8.5-5 5L2 7"/><path d="M16 17h6v-6"/></I>;
 export const CheckIcon = (p) => <I {...p}><path d="M20 6 9 17l-5-5"/></I>;
 export const BanIcon = (p) => <I {...p}><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 14.14 14.14"/></I>;
+
+export const TrashIcon = (p) => <I {...p}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6"/></I>;
+
+export const PencilIcon = (p) => <I {...p}><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></I>;
+
+export const VerifyIcon = (p) => <I {...p}><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></I>;
+export const XCircleIcon = (p) => <I {...p}><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></I>;
+

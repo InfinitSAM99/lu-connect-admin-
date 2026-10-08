@@ -92,6 +92,12 @@ export default function Students() {
     suspended: students.filter((s) => s.is_suspended).length,
   };
 
+  const statusLabel = (s) => {
+    if (s.is_suspended) return { text: 'Suspended', cls: 'badge-red' };
+    if (s.is_verified) return { text: 'Verified', cls: 'badge-green' };
+    return { text: 'Active', cls: 'badge-gray' };
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -99,7 +105,7 @@ export default function Students() {
         <p className="page-subtitle">Manage accounts, verify students, suspend abusers</p>
       </div>
 
-      <div className="card filters-card">
+      <div className="filters-block">
         <div className="filters-row">
           <div className="search-wrap">
             <SearchIcon width={16} height={16} />
@@ -131,77 +137,84 @@ export default function Students() {
       </div>
 
       {loading && <div className="state">Loading…</div>}
+
       {!loading && filtered.length === 0 && (
-        <div className="card state"><h3>No students found</h3></div>
+        <div className="flat-empty">No students found</div>
       )}
 
       {!loading && filtered.length > 0 && (
-        <div className="students-list">
-          {filtered.map((s) => (
-            <div key={s.id} className="card student-card">
-              {/* Top row: avatar + name/email + status badge */}
-              <Link to={`/students/${s.id}`} className="student-card-top">
-                <img
-                  className="avatar"
-                  width={42}
-                  height={42}
-                  src={s.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${s.full_name || 'U'}`}
-                  alt=""
-                />
-                <div className="student-card-info">
-                  <div className="student-card-name">
-                    {s.full_name}
-                    {s.is_verified && <span className="verified-dot">✓</span>}
-                    {s.is_broadcast_only && <span className="badge badge-red">📢</span>}
-                  </div>
-                  <div className="student-card-meta">
-                    {s.email}
-                  </div>
-                  <div className="student-card-meta">
-                    {s.faculty || 'No faculty'}
-                    {s.year_of_study ? ` · Year ${s.year_of_study}` : ''}
-                    {s.username ? ` · @${s.username}` : ''}
-                  </div>
-                </div>
-                <div className="student-card-status">
-                  {s.is_suspended ? (
-                    <span className="badge badge-red">Suspended</span>
-                  ) : s.is_verified ? (
-                    <span className="badge badge-green">Verified</span>
-                  ) : (
-                    <span className="badge badge-gray">Active</span>
-                  )}
-                </div>
-              </Link>
-
-              {/* Actions row */}
-              <div className="student-card-actions">
-                {isAdmin && (
-                  <>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => verifyUser(s)}
-                      disabled={busy === s.id}
-                    >
-                      <CheckIcon width={14} height={14} />
-                      {s.is_verified ? 'Unverify' : 'Verify'}
-                    </button>
-                    <button
-                      className="btn btn-ghost btn-sm danger"
-                      onClick={() => toggleSuspend(s)}
-                      disabled={busy === s.id}
-                    >
-                      <BanIcon width={14} height={14} />
-                      {s.is_suspended ? 'Reactivate' : 'Suspend'}
-                    </button>
-                  </>
-                )}
-                <Link to={`/students/${s.id}`} className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}>
-                  View <ChevronRightIcon width={14} height={14} />
-                </Link>
-              </div>
-            </div>
-          ))}
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th style={{ minWidth: 260 }}>Name</th>
+                <th style={{ minWidth: 100 }}>Faculty</th>
+                <th style={{ width: 60 }}>Year</th>
+                <th style={{ width: 110 }}>Status</th>
+                <th style={{ width: 130, textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((s) => {
+                const st = statusLabel(s);
+                return (
+                  <tr key={s.id}>
+                    <td>
+                      <Link to={`/students/${s.id}`} className="cell-user">
+                        <img
+                          className="avatar"
+                          width={36}
+                          height={36}
+                          src={s.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${s.full_name || 'U'}`}
+                          alt=""
+                        />
+                        <div className="cell-user-info">
+                          <div className="cell-user-name">
+                            {s.full_name || 'Unnamed'}
+                            {s.is_verified && <span className="verified-dot">✓</span>}
+                            {s.is_broadcast_only && <span className="badge badge-red" style={{ marginLeft: 4 }}>📢</span>}
+                          </div>
+                          <div className="cell-user-sub">{s.email}</div>
+                        </div>
+                      </Link>
+                    </td>
+                    <td>{s.faculty || '—'}</td>
+                    <td>{s.year_of_study || '—'}</td>
+                    <td>
+                      <span className={'badge ' + st.cls}>{st.text}</span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div className="cell-actions">
+                        {isAdmin && (
+                          <>
+                            <button
+                              className="icon-btn"
+                              title={s.is_verified ? 'Unverify' : 'Verify'}
+                              onClick={() => verifyUser(s)}
+                              disabled={busy === s.id}
+                            >
+                              <CheckIcon width={16} height={16} />
+                            </button>
+                            <button
+                              className={'icon-btn' + (s.is_suspended ? ' icon-btn-warn' : ' icon-btn-danger')}
+                              title={s.is_suspended ? 'Reactivate' : 'Suspend'}
+                              onClick={() => toggleSuspend(s)}
+                              disabled={busy === s.id}
+                            >
+                              <BanIcon width={16} height={16} />
+                            </button>
+                          </>
+                        )}
+                        <Link to={`/students/${s.id}`} className="icon-btn" title="View">
+                          <ChevronRightIcon width={16} height={16} />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
