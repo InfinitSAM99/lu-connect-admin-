@@ -8,6 +8,7 @@ import PendingApprovals from './pages/PendingApprovals.jsx';
 import Posts from './pages/Posts.jsx';
 import Comments from './pages/Comments.jsx';
 import Reports from './pages/Reports.jsx';
+import Moderation from './pages/Moderation.jsx';
 import Announcements from './pages/Announcements.jsx';
 import Events from './pages/Events.jsx';
 import Groups from './pages/Groups.jsx';
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="posts" element={<Posts />} />
         <Route path="comments" element={<Comments />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="moderation" element={<Moderation />} />
         <Route path="announcements" element={<Announcements />} />
         <Route path="events" element={<Events />} />
         <Route path="groups" element={<Groups />} />

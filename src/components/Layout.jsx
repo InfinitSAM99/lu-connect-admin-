@@ -20,6 +20,7 @@ const SECTIONS = [
     title: 'Moderation',
     links: [
       { to: '/pending-approvals', label: 'Pending Approvals', icon: ClockIcon },
+      { to: '/moderation', label: 'AI Moderation', icon: AlertTriangleIcon },
       { to: '/students', label: 'Students', icon: UsersIcon },
       { to: '/reports', label: 'Reports', icon: AlertTriangleIcon },
     ],
@@ -53,6 +54,7 @@ const SECTIONS = [
 const PAGE_TITLES = {
   '/dashboard': 'Dashboard',
   '/pending-approvals': 'Pending Approvals',
+  '/moderation': 'AI Moderation',
   '/students': 'Students',
   '/posts': 'Posts',
   '/comments': 'Comments',
