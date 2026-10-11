@@ -11,6 +11,7 @@ import Posts from './pages/Posts.jsx';
 import Comments from './pages/Comments.jsx';
 import Reports from './pages/Reports.jsx';
 import Moderation from './pages/Moderation.jsx';
+import Appeals from './pages/Appeals.jsx';
 import Settings from './pages/Settings.jsx';
 import AIAssistant from './pages/AIAssistant.jsx';
 import Announcements from './pages/Announcements.jsx';
@@ -46,6 +47,7 @@ function AdminRoutes() {
         <Route path="comments" element={<Comments />} />
         <Route path="reports" element={<Reports />} />
         <Route path="moderation" element={<Moderation />} />
+        <Route path="appeals" element={<Appeals />} />
         <Route path="settings" element={<Settings />} />
         <Route path="ai" element={<AIAssistant />} />
         <Route path="announcements" element={<Announcements />} />

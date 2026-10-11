@@ -5,7 +5,7 @@ import {
   DashboardIcon, ChartIcon, ClockIcon, UsersIcon, FileTextIcon, MessageIcon,
   AlertTriangleIcon, MegaphoneIcon, CalendarIcon, BuildingIcon,
   ShieldIcon, ClipboardIcon, CreditCardIcon,
-  MenuIcon, LogoutIcon, XIcon,
+  MenuIcon, LogoutIcon, XIcon, ShieldCheckIcon,
 } from './Icons.jsx';
 
 const SECTIONS = [
@@ -22,6 +22,7 @@ const SECTIONS = [
       { to: '/moderation', label: 'AI Moderation', icon: AlertTriangleIcon },
       { to: '/reports', label: 'Reports', icon: AlertTriangleIcon },
       { to: '/pending-approvals', label: 'Pending Approvals', icon: ClockIcon },
+      { to: '/appeals', label: 'Appeals', icon: ShieldCheckIcon },
     ],
   },
   {
@@ -55,6 +56,7 @@ const PAGE_TITLES = {
   '/dashboard': 'Dashboard',
   '/ai': 'AI Assistant',
   '/moderation': 'AI Moderation',
+  '/appeals': 'Appeals',
   '/reports': 'Reports',
   '/pending-approvals': 'Pending Approvals',
   '/students': 'Students',
