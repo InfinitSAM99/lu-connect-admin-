@@ -1,6 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import Layout from './components/Layout.jsx';
+import Splash from './components/Splash.jsx';
+import ErrorCatcher from './components/ErrorCatcher.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Students from './pages/Students.jsx';
@@ -31,7 +33,7 @@ function AdminGuard({ children }) {
   return children;
 }
 
-export default function App() {
+function AdminRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -55,5 +57,16 @@ export default function App() {
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <Splash />
+      <ErrorCatcher>
+        <AdminRoutes />
+      </ErrorCatcher>
+    </>
   );
 }

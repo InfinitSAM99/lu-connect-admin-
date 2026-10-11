@@ -43,3 +43,12 @@ export const PencilIcon = (p) => <I {...p}><path d="M12 20h9M16.5 3.5a2.121 2.12
 export const VerifyIcon = (p) => <I {...p}><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></I>;
 export const XCircleIcon = (p) => <I {...p}><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></I>;
 
+
+export const CheckCircleIcon = (p) => <I {...p}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></I>;
+
+export const UserIcon = (p) => <I {...p}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></I>;
+
+export const MailIcon = (p) => <I {...p}><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m2 7 10 6 10-6"/></I>;
+export const AtSignIcon = (p) => <I {...p}><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></I>;
+export const BookIcon = (p) => <I {...p}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></I>;
+export const GraduationIcon = (p) => <I {...p}><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></I>;
