@@ -20,6 +20,7 @@ import Groups from './pages/Groups.jsx';
 import Admins from './pages/Admins.jsx';
 import AuditLogs from './pages/AuditLogs.jsx';
 import Payments from './pages/Payments.jsx';
+import Boosts from './pages/Boosts.jsx';
 
 function AdminGuard({ children }) {
   const { user, isAdmin, loading } = useAuth();
@@ -56,6 +57,7 @@ function AdminRoutes() {
         <Route path="admins" element={<Admins />} />
         <Route path="audit-logs" element={<AuditLogs />} />
         <Route path="payments" element={<Payments />} />
+        <Route path="boosts" element={<Boosts />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
