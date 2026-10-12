@@ -120,7 +120,7 @@ export default function Payments() {
     const { error: boostErr } = await supabase
       .from('boosts')
       .update({
-        status: 'approved',
+        status: 'active',
         started_at: now.toISOString(),
         expires_at: expires.toISOString(),
         updated_at: now.toISOString(),
@@ -144,7 +144,7 @@ export default function Payments() {
 
     const { error } = await supabase
       .from('payments')
-      .update({ status: 'approved', reviewed_by: me.id, reviewed_at: new Date().toISOString() })
+      .update({ status: 'active', reviewed_by: me.id, reviewed_at: new Date().toISOString() })
       .eq('id', active.id);
     if (error) { setBusy(false); alert('Approve failed: ' + error.message); return; }
 

@@ -12,7 +12,7 @@ import {
 
 const STATUS_ROWS = [
   { key: 'pending',     label: 'Pending review',  color: '#eab308' },
-  { key: 'approved',    label: 'Delivering',      color: '#3b82f6' },
+  { key: 'active',      label: 'Delivering',      color: '#3b82f6' },
   { key: 'completed',   label: 'Completed',       color: '#22c55e' },
   { key: 'rejected',    label: 'Rejected',        color: '#ef4444' },
 ];
@@ -121,7 +121,7 @@ export default function Boosts() {
     const { error } = await supabase
       .from('boosts')
       .update({
-        status: 'approved',
+        status: 'active',
         started_at: now.toISOString(),
         expires_at: expires.toISOString(),
         admin_note: adminNote || null,
@@ -351,12 +351,12 @@ export default function Boosts() {
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>
                         {CATEGORY_LABELS[b.category] || b.category}
-                        {b.status === 'approved' && ` · ${b.delivered}/${b.quantity}`}
+                        {b.status === 'active' && ` · ${b.delivered}/${b.quantity}`}
                         {b.status === 'pending' && ` · KSh ${b.amount_ksh}`}
                         {b.status === 'completed' && ` · done`}
                       </div>
                     </div>
-                    {b.status === 'approved' && (
+                    {b.status === 'active' && (
                       <div style={{
                         width: 34, height: 34, borderRadius: 17,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -516,7 +516,7 @@ export default function Boosts() {
               )}
 
               {/* Progress (if delivering) */}
-              {active.status === 'approved' && (
+              {active.status === 'active' && (
                 <div style={{ padding: '20px', borderBottom: '1px solid var(--border)' }}>
                   <div style={{
                     fontSize: 12, fontWeight: 700, color: 'var(--text-3)',
