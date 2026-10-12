@@ -30,10 +30,14 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(cached?.profile || null);
   const [roleLevel, setRoleLevel] = useState(cached?.roleLevel ?? 0);
-  const [loading, setLoading] = useState(!cached?.profile);
+  // IMPORTANT: loading stays true until getSession resolves.
+  // Cache gives us instant profile, but the SESSION must be verified
+  // so AdminGuard doesn't bounce to /login on cold start.
+  const [loading, setLoading] = useState(true);
 
   const refreshingRef = useRef(false);
   const lastFetchRef = useRef(0);
+  const bootDoneRef = useRef(false);
 
   const loadProfile = async (uid, { force = false } = {}) => {
     if (!uid) {
@@ -71,6 +75,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
+    // 1. Boot: wait for getSession before setting loading = false
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       const u = data.session?.user ?? null;
@@ -81,21 +86,29 @@ export function AuthProvider({ children }) {
         setRoleLevel(0);
         writeCache(null);
         setLoading(false);
+        bootDoneRef.current = true;
         return;
       }
 
       const c = readCache();
       if (c?.userId === u.id && c?.profile) {
+        // We already have profile — release loading immediately, refresh silently
         setLoading(false);
+        bootDoneRef.current = true;
         loadProfile(u.id, { force: true });
       } else {
         loadProfile(u.id, { force: true }).finally(() => {
-          if (mounted) setLoading(false);
+          if (mounted) {
+            setLoading(false);
+            bootDoneRef.current = true;
+          }
         });
       }
     });
 
+    // 2. Auth events
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
       const u = session?.user ?? null;
       setUser(u);
 
@@ -104,14 +117,18 @@ export function AuthProvider({ children }) {
         setRoleLevel(0);
         writeCache(null);
         setLoading(false);
+        bootDoneRef.current = true;
         return;
       }
 
-      const c = readCache();
-      if (c?.userId === u.id && c?.profile) {
-        loadProfile(u.id, { force: true });
-      } else {
-        loadProfile(u.id, { force: true }).finally(() => setLoading(false));
+      // Only force profile refresh after boot has finished — avoids races
+      if (bootDoneRef.current) {
+        const c = readCache();
+        if (c?.userId === u.id && c?.profile) {
+          loadProfile(u.id, { force: true });
+        } else {
+          loadProfile(u.id, { force: true }).finally(() => setLoading(false));
+        }
       }
     });
 
