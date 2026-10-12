@@ -67,8 +67,8 @@ export default function Posts() {
   };
 
   const removePost = async (p) => {
-    if (!confirm('Remove this post? It will be hidden from all users.')) return;
-    const { error } = await supabase.rpc('soft_delete_post', { post_id: p.id });
+    if (!confirm('Delete this post permanently? Comments, likes, saves and views will also be removed. This cannot be undone.')) return;
+    const { error } = await supabase.from('posts').delete().eq('id', p.id);
     if (error) { alert('Delete failed: ' + error.message); return; }
     await supabase.from('admin_audit_logs').insert({
       admin_id: me.id,

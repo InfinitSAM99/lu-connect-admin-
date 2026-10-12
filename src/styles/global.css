@@ -921,3 +921,18 @@ textarea { resize: vertical; min-height: 70px; }
   from { transform: translateY(100%); opacity: 0.5; }
   to   { transform: translateY(0); opacity: 1; }
 }
+
+/* Kill mobile tap highlight globally */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+button, a, [role="button"], div {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+button:focus, a:focus, [role="button"]:focus {
+  outline: none;
+}
+button:active {
+  background-color: inherit;
+}
