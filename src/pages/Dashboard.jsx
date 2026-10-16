@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRealtime, useRefetchOnReconnect, useRealtimeStatus } from '../lib/realtime';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 
 const tooltipStyle = {
@@ -24,6 +25,13 @@ const CATEGORY_COLORS = {
   none: '#6b7280',
 };
 
+const STATUS_LABEL = {
+  connected: { color: '#22c55e', label: 'Live' },
+  reconnecting: { color: '#f59e0b', label: 'Reconnecting' },
+  disconnected: { color: '#ef4444', label: 'Offline' },
+  idle: { color: '#6d7382', label: 'Idle' },
+};
+
 export default function Dashboard() {
   const [onlineNow, setOnlineNow] = useState(0);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -40,42 +48,52 @@ export default function Dashboard() {
   const [flagsByCategory, setFlagsByCategory] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
+  const mountedRef = useRef(true);
+  const inflightRef = useRef(false);
+  const debounceRef = useRef(null);
+  const status = useRealtimeStatus();
+
+  // ---------------------------------------------------------------------
+  // Data loader — one big parallel fetch. Runs on mount, on realtime
+  // event (debounced), and on reconnect. NOT on a timer.
+  // ---------------------------------------------------------------------
+  const load = useCallback(async () => {
+    if (inflightRef.current) return;
+    inflightRef.current = true;
+
+    try {
       const now = new Date();
-      const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
       const twoMinAgo = new Date(now.getTime() - 2 * 60 * 1000).toISOString();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
+      // Headline counts come from a SECURITY DEFINER RPC — avoids the
+      // silent-zero bug with `count: 'exact', head: true` under RLS.
+      // Chart buckets come from direct selects (they already worked).
       const [
-        online, activeT,
+        countsRes,
         allSignups, allActivity,
         allPosts, allComments, allReports, allFlags,
-        totalU, totalP, totalR, totalC,
       ] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('last_seen', twoMinAgo),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('last_seen', todayStart),
+        supabase.rpc('admin_counts'),
         supabase.from('profiles').select('created_at').gte('created_at', thirtyDaysAgo),
         supabase.from('profiles').select('last_seen').gte('last_seen', thirtyDaysAgo),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_deleted', false),
-        supabase.from('reports').select('*', { count: 'exact', head: true }),
-        supabase.from('comments').select('*', { count: 'exact', head: true }).eq('is_deleted', false),
         supabase.from('posts').select('created_at').eq('is_deleted', false).gte('created_at', thirtyDaysAgo),
         supabase.from('comments').select('created_at').eq('is_deleted', false).gte('created_at', thirtyDaysAgo),
         supabase.from('reports').select('created_at').gte('created_at', thirtyDaysAgo),
         supabase.from('moderation_flags').select('ai_category').gte('created_at', thirtyDaysAgo),
       ]);
 
-      setOnlineNow(online.count || 0);
-      setTotalUsers(totalU.count || 0);
-      setTotalPosts(totalP.count || 0);
-      setTotalReports(totalR.count || 0);
-      setTotalComments(totalC.count || 0);
-      setActiveToday(activeT.count || 0);
+      if (!mountedRef.current) return;
 
-      // Buckets helper
+      const counts = countsRes?.data || {};
+      setOnlineNow(counts.online_now || 0);
+      setTotalUsers(counts.users || 0);
+      setTotalPosts(counts.posts || 0);
+      setTotalReports(counts.reports || 0);
+      setTotalComments(counts.comments || 0);
+      setActiveToday(counts.active_today || 0);
+
       const buildDayBuckets = (sourceData, label = 'count') => {
         const days = [];
         const map = {};
@@ -92,19 +110,11 @@ export default function Dashboard() {
         return days;
       };
 
-      // Signups
       setSignupsData(buildDayBuckets(allSignups.data, 'count'));
-
-      // Posts
       setPostsData(buildDayBuckets(allPosts.data, 'count'));
-
-      // Comments
       setCommentsData(buildDayBuckets(allComments.data, 'count'));
-
-      // Reports
       setReportsData(buildDayBuckets(allReports.data, 'count'));
 
-      // Active users/day — bucket last_seen by day
       const activeDays = [];
       const activeMap = {};
       for (let i = 29; i >= 0; i--) {
@@ -120,7 +130,6 @@ export default function Dashboard() {
       });
       setActiveUsersData(activeDays);
 
-      // Hourly (last 24h)
       const hourBuckets = [];
       for (let i = 23; i >= 0; i--) {
         const d = new Date(now.getTime() - i * 60 * 60 * 1000);
@@ -137,7 +146,6 @@ export default function Dashboard() {
       });
       setHourlyData(hourBuckets);
 
-      // Flags by category (pie)
       const catMap = {};
       (allFlags.data || []).forEach((f) => {
         const cat = f.ai_category || 'other';
@@ -147,20 +155,100 @@ export default function Dashboard() {
         .map(([name, value]) => ({ name, value, color: CATEGORY_COLORS[name] || '#6b7280' }))
         .filter((c) => c.value > 0);
       setFlagsByCategory(catList);
-
-      setLoading(false);
-    };
-    load();
+    } catch (e) {
+      console.warn('[dashboard] load failed:', e?.message);
+    } finally {
+      inflightRef.current = false;
+      if (mountedRef.current) setLoading(false);
+    }
   }, []);
+
+  // Debounced trigger — realtime events call this, we collapse bursts.
+  const scheduleReload = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      load();
+    }, 2000);
+  }, [load]);
+
+  // Initial load
+  useEffect(() => {
+    mountedRef.current = true;
+    load();
+    return () => {
+      mountedRef.current = false;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [load]);
+
+  // Refetch when realtime manager reconnects after background/network flap
+  useRefetchOnReconnect(() => {
+    load();
+  });
+
+  // ---------------------------------------------------------------------
+  // Realtime subscriptions
+  // ---------------------------------------------------------------------
+  // - profiles UPDATE: catches last_seen heartbeats → online-now count
+  //   (heaviest event source — 2s debounce absorbs the storm)
+  // - posts INSERT / comments INSERT / reports INSERT: headline counts + charts
+  // - moderation_flags INSERT: flags pie
+  // ---------------------------------------------------------------------
+  useRealtime('dash:profiles-upd', {
+    event: 'UPDATE', schema: 'public', table: 'profiles',
+  }, scheduleReload);
+
+  useRealtime('dash:posts-ins', {
+    event: 'INSERT', schema: 'public', table: 'posts',
+  }, scheduleReload);
+
+  useRealtime('dash:comments-ins', {
+    event: 'INSERT', schema: 'public', table: 'comments',
+  }, scheduleReload);
+
+  useRealtime('dash:reports-ins', {
+    event: 'INSERT', schema: 'public', table: 'reports',
+  }, scheduleReload);
+
+  useRealtime('dash:flags-ins', {
+    event: 'INSERT', schema: 'public', table: 'moderation_flags',
+  }, scheduleReload);
 
   if (loading) return <div className="state">Loading dashboard…</div>;
 
   const hasFlags = flagsByCategory.length > 0;
+  const statusMeta = STATUS_LABEL[status] || STATUS_LABEL.idle;
 
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Dashboard</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h1 className="page-title">Dashboard</h1>
+          <span
+            title={`Realtime: ${statusMeta.label}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--text-3)',
+              textTransform: 'uppercase',
+              letterSpacing: 1,
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: statusMeta.color,
+                boxShadow: `0 0 8px ${statusMeta.color}`,
+              }}
+            />
+            {statusMeta.label}
+          </span>
+        </div>
         <p className="page-subtitle">Live platform statistics</p>
       </div>
 

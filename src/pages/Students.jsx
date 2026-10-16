@@ -1,6 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useLiveQuery } from '../lib/useLiveQuery';
+import { cacheRemoveByPrefix } from '../lib/cache';
 import {
   UsersIcon,
   SearchIcon,
@@ -15,54 +17,65 @@ import {
   CalendarIcon,
 } from '../components/Icons.jsx';
 
-function initials(name) {
-  if (!name) return 'U';
-  return name.split(' ').map((s) => s[0]).join('').slice(0, 2).toUpperCase();
-}
-
 function fullDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+const SELECT_COLS =
+  'id, email, full_name, username, avatar_url, faculty, course, year_of_study, role_id, is_verified, is_suspended, is_broadcast_only, is_bot, created_at, displayed_follower_count, approval_status, roles(name, level)';
+
 export default function Students() {
   const { profile: me } = useAuth();
-  const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(null);
-  const [drawer, setDrawer] = useState(null);
+  const [drawerId, setDrawerId] = useState(null);
   const [dragY, setDragY] = useState(0);
   const startYRef = useRef(0);
   const activeRef = useRef(false);
-  const debounceRef = useRef(null);
 
-  const load = async (searchTerm = '') => {
-    setLoading(true);
-    let query = supabase
-      .from('profiles')
-      .select('id, email, full_name, username, avatar_url, faculty, course, year_of_study, role_id, is_verified, is_suspended, is_broadcast_only, created_at, displayed_follower_count, approval_status, roles(name, level)')
-      .order('created_at', { ascending: false })
-      .limit(300);
+  // --------------------------------------------------------------
+  // Cache-first + live. Cache key is 'students:all' (unfiltered).
+  // 300 rows max → filter locally for instant search.
+  // --------------------------------------------------------------
+  const { data: students, loading, refreshing, refresh } = useLiveQuery(
+    'students:all',
+    () =>
+      supabase
+        .from('profiles')
+        .select(SELECT_COLS)
+        .order('created_at', { ascending: false })
+        .limit(300),
+    { table: 'profiles', event: '*' },
+    { cacheTtl: 3 * 60 * 1000, initialData: [] }
+  );
 
-    const term = searchTerm.trim();
-    if (term) {
-      query = query.or(`full_name.ilike.%${term}%,email.ilike.%${term}%,username.ilike.%${term}%`);
-    }
+  const list = students || [];
 
-    const { data } = await query;
-    setStudents(data || []);
-    setLoading(false);
-  };
+  // Local filter — instant, no network
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return list;
+    return list.filter((s) => {
+      const name = (s.full_name || '').toLowerCase();
+      const email = (s.email || '').toLowerCase();
+      const uname = (s.username || '').toLowerCase();
+      return name.includes(term) || email.includes(term) || uname.includes(term);
+    });
+  }, [list, q]);
 
-  useEffect(() => { load(''); }, []);
+  // Drawer is bound to the live list, not a frozen snapshot
+  const drawer = useMemo(
+    () => (drawerId ? list.find((s) => s.id === drawerId) || null : null),
+    [drawerId, list]
+  );
 
+  // If the user got removed from the list (edge case), close drawer
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => load(q), 150);
-    return () => clearTimeout(debounceRef.current);
-  }, [q]);
+    if (drawerId && !drawer && !loading) setDrawerId(null);
+  }, [drawerId, drawer, loading]);
 
+  // Drawer drag
   const onTouchStart = (e) => {
     startYRef.current = e.touches[0].clientY;
     activeRef.current = true;
@@ -73,11 +86,19 @@ export default function Students() {
     if (dy > 0) setDragY(dy);
   };
   const onTouchEnd = () => {
-    if (dragY > 100) setDrawer(null);
+    if (dragY > 100) closeDrawer();
     setDragY(0);
     activeRef.current = false;
   };
+  const closeDrawer = () => {
+    setDrawerId(null);
+    setDragY(0);
+  };
 
+  // --------------------------------------------------------------
+  // Mutations — no manual reload; realtime UPDATE fires and
+  // useLiveQuery refreshes automatically.
+  // --------------------------------------------------------------
   const logAction = async (action, targetId, details = {}) => {
     await supabase.from('admin_audit_logs').insert({
       admin_id: me.id,
@@ -97,11 +118,13 @@ export default function Students() {
       .from('profiles')
       .update({ is_suspended: newStatus, suspended_reason: reason })
       .eq('id', s.id);
-    if (error) { alert(error.message); setBusy(null); return; }
+    if (error) {
+      alert(error.message);
+      setBusy(null);
+      return;
+    }
     await logAction(newStatus ? 'suspend_user' : 'reactivate_user', s.id, { reason });
     setBusy(null);
-    setDrawer(null);
-    load(q);
   };
 
   const banUser = async (s) => {
@@ -111,11 +134,13 @@ export default function Students() {
       .from('profiles')
       .update({ approval_status: 'banned' })
       .eq('id', s.id);
-    if (error) { alert(error.message); setBusy(null); return; }
+    if (error) {
+      alert(error.message);
+      setBusy(null);
+      return;
+    }
     await logAction('ban_user', s.id);
     setBusy(null);
-    setDrawer(null);
-    load(q);
   };
 
   const approveUser = async (s) => {
@@ -124,14 +149,23 @@ export default function Students() {
       .from('profiles')
       .update({ approval_status: 'approved' })
       .eq('id', s.id);
-    if (error) { alert(error.message); setBusy(null); return; }
+    if (error) {
+      alert(error.message);
+      setBusy(null);
+      return;
+    }
     await logAction('approve_user', s.id);
     setBusy(null);
-    setDrawer(null);
-    load(q);
   };
 
-  const closeDrawer = () => { setDrawer(null); setDragY(0); };
+  // Manual cache bust — used after destructive ops only
+  const bustCache = () => cacheRemoveByPrefix('students');
+
+  // Expose refresh for edge cases (e.g. after a bulk op)
+  // (kept for parity with the old `load()` behavior — but usually realtime handles it)
+  void refresh;
+  void refreshing;
+  void bustCache;
 
   return (
     <div style={{ paddingBottom: 100 }}>
@@ -208,23 +242,24 @@ export default function Students() {
         )}
       </div>
 
-      {loading && <div className="state">Loading…</div>}
+      {/* First-ever load only — after that, cache makes it instant */}
+      {loading && list.length === 0 && <div className="state">Loading…</div>}
 
-      {!loading && students.length === 0 && (
+      {!loading && filtered.length === 0 && (
         <div style={{ padding: '60px 24px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
           {q ? 'No students match your search' : 'No students yet'}
         </div>
       )}
 
       {/* STUDENT LIST */}
-      {!loading && students.length > 0 && (
+      {filtered.length > 0 && (
         <div style={{ borderTop: '1px solid var(--border)' }}>
-          {students.map((s) => {
+          {filtered.map((s) => {
             const role = s.roles?.name || 'student';
             return (
               <button
                 key={s.id}
-                onClick={() => setDrawer(s)}
+                onClick={() => setDrawerId(s.id)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -276,9 +311,12 @@ export default function Students() {
                   >
                     {s.full_name || 'Unnamed'}
                   </div>
-                  {(role !== 'student' || s.is_suspended || s.approval_status === 'banned') && (
+                  {(role !== 'student' || s.is_suspended || s.approval_status === 'banned' || s.is_bot) && (
                     <div style={{ fontSize: 12, marginTop: 3, color: 'var(--text-3)' }}>
-                      {role !== 'student' && <span style={{ textTransform: 'capitalize' }}>{role.replace('_', ' ')}</span>}
+                      {s.is_bot && <span style={{ color: '#a855f7' }}>Bot</span>}
+                      {!s.is_bot && role !== 'student' && (
+                        <span style={{ textTransform: 'capitalize' }}>{role.replace('_', ' ')}</span>
+                      )}
                       {s.is_suspended && <span style={{ color: '#f97316', marginLeft: 8 }}>Suspended</span>}
                       {s.approval_status === 'banned' && <span style={{ color: '#ef4444', marginLeft: 8 }}>Banned</span>}
                     </div>
@@ -408,7 +446,6 @@ export default function Students() {
             </div>
 
             <div style={{ overflowY: 'auto', flex: 1, paddingBottom: 24 }}>
-              {/* INFO ROWS */}
               <InfoRow icon={<MailIcon width={20} height={20} />} label="Email" value={drawer.email} />
               <InfoRow icon={<GraduationIcon width={20} height={20} />} label="Faculty" value={drawer.faculty || '—'} />
               <InfoRow icon={<BookIcon width={20} height={20} />} label="Course" value={drawer.course || '—'} />
@@ -416,7 +453,6 @@ export default function Students() {
               <InfoRow icon={<UsersIcon width={20} height={20} />} label="Role" value={(drawer.roles?.name || 'student').replace('_', ' ')} />
               <InfoRow icon={<AtSignIcon width={20} height={20} />} label="Joined" value={fullDate(drawer.created_at)} />
 
-              {/* STATUS */}
               <div
                 style={{
                   padding: '16px 20px',
@@ -426,19 +462,42 @@ export default function Students() {
                   flexWrap: 'wrap',
                 }}
               >
+                {drawer.is_bot && <Chip label="Bot" color="#a855f7" />}
                 {drawer.is_suspended && <Chip label="Suspended" color="#f97316" />}
                 {drawer.approval_status === 'banned' && <Chip label="Banned" color="#ef4444" />}
                 {drawer.approval_status === 'pending' && <Chip label="Pending approval" color="#eab308" />}
                 {drawer.is_verified && <Chip label="Verified" color="#22c55e" />}
-                {!drawer.is_suspended && drawer.approval_status !== 'banned' && drawer.approval_status !== 'pending' && !drawer.is_verified && (
+                {!drawer.is_bot && !drawer.is_suspended && drawer.approval_status !== 'banned' && drawer.approval_status !== 'pending' && !drawer.is_verified && (
                   <Chip label="Active" color="#6d7382" />
                 )}
               </div>
 
-              {/* ACTIONS — hidden when target is super admin or you */}
               {(() => {
                 const targetLevel = drawer.roles?.level ?? 0;
-                const isProtected = targetLevel >= 3 || drawer.id === me?.id;
+                const isSelf = drawer.id === me?.id;
+                const isProtected = targetLevel >= 3 || isSelf;
+                const isBot = drawer.is_bot === true;
+
+                if (isBot) {
+                  return (
+                    <div style={{ padding: '0 20px 20px' }}>
+                      <div
+                        style={{
+                          padding: 14,
+                          borderRadius: 12,
+                          background: 'var(--surface-2)',
+                          fontSize: 13,
+                          color: 'var(--text-3)',
+                          textAlign: 'center',
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        This is a system bot account. Manage bots from Settings.
+                      </div>
+                    </div>
+                  );
+                }
+
                 if (isProtected) {
                   return (
                     <div style={{ padding: '0 20px 20px' }}>
@@ -453,13 +512,14 @@ export default function Students() {
                           lineHeight: 1.5,
                         }}
                       >
-                        {drawer.id === me?.id
+                        {isSelf
                           ? 'This is your own account.'
                           : 'Super admins are protected.'}
                       </div>
                     </div>
                   );
                 }
+
                 return (
                   <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {drawer.approval_status === 'pending' && (

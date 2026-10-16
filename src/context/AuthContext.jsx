@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { realtime } from '../lib/realtime';
 
 const AuthContext = createContext(null);
 
@@ -87,12 +88,18 @@ export function AuthProvider({ children }) {
         writeCache(null);
         setLoading(false);
         bootDoneRef.current = true;
+        realtime.shutdown();
         return;
       }
 
+      // Boot realtime manager now that we know who the user is.
+      // Safe even if plugins fail — boot() swallows listener errors.
+      realtime.boot(u.id).catch((e) => {
+        console.warn('[auth] realtime.boot failed:', e?.message);
+      });
+
       const c = readCache();
       if (c?.userId === u.id && c?.profile) {
-        // We already have profile — release loading immediately, refresh silently
         setLoading(false);
         bootDoneRef.current = true;
         loadProfile(u.id, { force: true });
@@ -118,8 +125,13 @@ export function AuthProvider({ children }) {
         writeCache(null);
         setLoading(false);
         bootDoneRef.current = true;
+        // Kill all realtime channels on logout so RLS-scoped sockets die.
+        realtime.shutdown().catch(() => {});
         return;
       }
+
+      // New session / token refresh — make sure realtime is running.
+      realtime.boot(u.id).catch(() => {});
 
       // Only force profile refresh after boot has finished — avoids races
       if (bootDoneRef.current) {
@@ -135,6 +147,9 @@ export function AuthProvider({ children }) {
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
+      // Do NOT shutdown realtime here — React strict mode double-mounts
+      // in dev and would kill channels mid-flight. Shutdown happens on
+      // explicit SIGNED_OUT or app teardown.
     };
   }, []);
 
@@ -145,6 +160,7 @@ export function AuthProvider({ children }) {
     writeCache(null);
     setProfile(null);
     setRoleLevel(0);
+    await realtime.shutdown().catch(() => {});
     return supabase.auth.signOut();
   };
 

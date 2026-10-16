@@ -1,6 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { realtime } from '../lib/realtime';
+import { probeRealtimeTransport } from '../lib/realtimeDiag';
+import { App as CapApp } from '@capacitor/app';
 import {
   DashboardIcon, ChartIcon, ClockIcon, UsersIcon, FileTextIcon, MessageIcon,
   AlertTriangleIcon, MegaphoneIcon, CalendarIcon, BuildingIcon,
@@ -81,6 +84,42 @@ const BOTTOM_NAV = [
 ];
 
 export default function Layout() {
+  // Realtime diagnostic — logs transport type once per session.
+  useEffect(() => {
+    probeRealtimeTransport();
+  }, []);
+
+  // Foreground resume — Android kills the WebSocket when the app
+  // is backgrounded. On resume, force the RealtimeManager to tear
+  // down and rebuild every channel, which also fires every mounted
+  // useLiveQuery refetch callback. Idempotent if already connected.
+  useEffect(() => {
+    let listener = null;
+    (async () => {
+      try {
+        listener = await CapApp.addListener('appStateChange', async ({ isActive }) => {
+          if (!isActive) return;
+          try { await realtime.rebuildAll('resume'); } catch (e) {
+            console.warn('[admin/realtime] resume rebuild failed:', e?.message);
+          }
+        });
+      } catch {
+        // Not in native shell — browser visibility fallback
+        if (typeof document !== 'undefined') {
+          const onVis = () => {
+            if (document.visibilityState !== 'visible') return;
+            realtime.rebuildAll('visibility').catch(() => {});
+          };
+          document.addEventListener('visibilitychange', onVis);
+          listener = { remove: () => document.removeEventListener('visibilitychange', onVis) };
+        }
+      }
+    })();
+    return () => {
+      try { listener?.remove?.(); } catch {}
+    };
+  }, []);
+
   const { profile, signOut, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

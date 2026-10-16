@@ -106,16 +106,62 @@ export default function Payments() {
     if (payment.purpose !== 'post_boost' && payment.purpose !== 'followers') {
       return { ok: true };
     }
-    const { data: boostRow, error: findErr } = await supabase
+
+    // Look up the boost linked to this payment
+    let boostRow = null;
+    const { data: found, error: findErr } = await supabase
       .from('boosts')
-      .select('id, post_id, category, delivery_days')
+      .select('id, post_id, category, duration_days, delivery_days')
       .eq('payment_id', payment.id)
       .maybeSingle();
     if (findErr) return { ok: false, msg: findErr.message };
-    if (!boostRow) return { ok: true };
+    boostRow = found;
 
+    // If no boost row exists yet, create it from the payment metadata.
+    // Status starts as 'pending' — admin does a second approval on the
+    // Boosts page, which flips it to 'active' and lets the engine deliver.
+    if (!boostRow) {
+      const meta = payment.metadata || {};
+      const postId = meta.post_id;
+      const category = meta.category || 'likes';
+      const quantity = Number(meta.quantity || 0);
+      const durationDays = Number(meta.duration_days || 5);
+      const packageId = meta.package_id || `${category}_${quantity}`;
+
+      if (!postId || !quantity) {
+        return { ok: false, msg: 'Payment metadata missing post_id or quantity' };
+      }
+
+      const { data: created, error: createErr } = await supabase
+        .from('boosts')
+        .insert({
+          user_id: payment.user_id,
+          payment_id: payment.id,
+          post_id: postId,
+          category,
+          quantity,
+          package_id: packageId,
+          amount_ksh: payment.amount || 0,
+          duration_days: durationDays,
+          delivery_days: durationDays,
+          delivered: 0,
+          status: 'pending',
+        })
+        .select('id, post_id, category, duration_days')
+        .single();
+      if (createErr) return { ok: false, msg: createErr.message };
+
+      // Mark the post as boost_paid so the UI shows the badge.
+      // boosted_until gets set on the second approval (Boosts page).
+      await supabase.from('posts').update({ boost_paid: true }).eq('id', postId);
+
+      return { ok: true, created: true, boostId: created.id };
+    }
+
+    // Boost already exists — original behavior: flip to active
     const now = new Date();
-    const expires = new Date(now.getTime() + (boostRow.delivery_days || 5) * 86400000);
+    const days = boostRow.duration_days || boostRow.delivery_days || 5;
+    const expires = new Date(now.getTime() + days * 86400000);
 
     const { error: boostErr } = await supabase
       .from('boosts')
@@ -144,7 +190,7 @@ export default function Payments() {
 
     const { error } = await supabase
       .from('payments')
-      .update({ status: 'active', reviewed_by: me.id, reviewed_at: new Date().toISOString() })
+      .update({ status: 'approved', reviewed_by: me.id, reviewed_at: new Date().toISOString() })
       .eq('id', active.id);
     if (error) { setBusy(false); alert('Approve failed: ' + error.message); return; }
 
