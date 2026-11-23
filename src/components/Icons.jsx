@@ -63,3 +63,6 @@ export const PencilIconAlt = (p) => <I {...p}><path d="M12 20h9M16.5 3.5a2.121 2
 export const LockIcon = (p) => <I {...p}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></I>;
 export const AlertCircleIcon = (p) => <I {...p}><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></I>;
 export const ChevronLeftIcon = (p) => <I {...p}><path d="m15 18-6-6 6-6"/></I>;
+
+export const CopyIcon = (p) => <I {...p}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></I>;
+export const PlusIcon = (p) => <I {...p}><path d="M5 12h14"/><path d="M12 5v14"/></I>;

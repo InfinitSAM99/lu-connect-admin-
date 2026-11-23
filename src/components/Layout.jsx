@@ -52,6 +52,7 @@ const SECTIONS = [
     links: [
       { to: '/boosts', label: 'Boosts', icon: RocketIcon },
       { to: '/payments', label: 'Payments', icon: CreditCardIcon },
+      { to: '/admin-codes', label: 'Access Codes', icon: ShieldCheckIcon },
       { to: '/settings', label: 'Settings', icon: ShieldIcon },
       { to: '/audit-logs', label: 'Audit Logs', icon: ClipboardIcon },
     ],
@@ -77,6 +78,7 @@ const PAGE_TITLES = {
   '/groups': 'Groups',
   '/boosts': 'Boosts',
   '/payments': 'Payments',
+  '/admin-codes': 'Access Codes',
   '/settings': 'Settings',
   '/audit-logs': 'Audit Logs',
 };
