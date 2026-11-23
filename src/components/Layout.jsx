@@ -24,6 +24,9 @@ const SECTIONS = [
     links: [
       { special: 'reports', label: 'Reports', icon: AlertTriangleIcon },
       { to: '/pending-approvals', label: 'Pending Approvals', icon: ClockIcon },
+      { to: '/security-center', label: 'Security Center', icon: ShieldCheckIcon },
+      { to: '/recovery-messages', label: 'Recovery Messages', icon: MessageIcon },
+      { to: '/help-desk', label: 'Help Desk', icon: MessageIcon },
       { to: '/appeals', label: 'Appeals', icon: ShieldCheckIcon },
     ],
   },
@@ -57,6 +60,9 @@ const SECTIONS = [
 
 const PAGE_TITLES = {
   '/dashboard': 'Dashboard',
+  '/security-center': 'Security Center',
+  '/recovery-messages': 'Recovery Messages',
+  '/help-desk': 'Help Desk',
   '/ai': 'AI Assistant',
   '/moderation': 'AI Reports',
   '/appeals': 'Appeals',

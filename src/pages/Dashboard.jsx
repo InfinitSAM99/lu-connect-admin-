@@ -9,9 +9,10 @@ import {
 const tooltipStyle = {
   background: '#0a0a0a',
   border: '1px solid #1f1f1f',
-  borderRadius: 8,
+  borderRadius: 12,
   fontSize: 12,
-  color: '#f2f3f5',
+  color: '#fff',
+  boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
 };
 
 const CATEGORY_COLORS = {
@@ -26,10 +27,10 @@ const CATEGORY_COLORS = {
 };
 
 const STATUS_LABEL = {
-  connected: { color: '#22c55e', label: 'Live' },
-  reconnecting: { color: '#f59e0b', label: 'Reconnecting' },
-  disconnected: { color: '#ef4444', label: 'Offline' },
-  idle: { color: '#6d7382', label: 'Idle' },
+  connected: { color: '#22c55e', label: 'LIVE' },
+  reconnecting: { color: '#f59e0b', label: 'RECONNECTING' },
+  disconnected: { color: '#ef4444', label: 'OFFLINE' },
+  idle: { color: '#6d7382', label: 'IDLE' },
 };
 
 export default function Dashboard() {
@@ -48,40 +49,36 @@ export default function Dashboard() {
   const [flagsByCategory, setFlagsByCategory] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // NEW: Time Range Filter
+  const [timeRange, setTimeRange] = useState(30); 
+
   const mountedRef = useRef(true);
   const inflightRef = useRef(false);
   const debounceRef = useRef(null);
   const status = useRealtimeStatus();
 
-  // ---------------------------------------------------------------------
-  // Data loader — one big parallel fetch. Runs on mount, on realtime
-  // event (debounced), and on reconnect. NOT on a timer.
-  // ---------------------------------------------------------------------
-  const load = useCallback(async () => {
+  const load = useCallback(async (range) => {
     if (inflightRef.current) return;
     inflightRef.current = true;
+    setLoading(true);
 
     try {
       const now = new Date();
-      const twoMinAgo = new Date(now.getTime() - 2 * 60 * 1000).toISOString();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const daysAgo = new Date(now.getTime() - range * 24 * 60 * 60 * 1000).toISOString();
+      const hoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(); 
 
-      // Headline counts come from a SECURITY DEFINER RPC — avoids the
-      // silent-zero bug with `count: 'exact', head: true` under RLS.
-      // Chart buckets come from direct selects (they already worked).
       const [
         countsRes,
         allSignups, allActivity,
         allPosts, allComments, allReports, allFlags,
       ] = await Promise.all([
         supabase.rpc('admin_counts'),
-        supabase.from('profiles').select('created_at').gte('created_at', thirtyDaysAgo),
-        supabase.from('profiles').select('last_seen').gte('last_seen', thirtyDaysAgo),
-        supabase.from('posts').select('created_at').eq('is_deleted', false).gte('created_at', thirtyDaysAgo),
-        supabase.from('comments').select('created_at').eq('is_deleted', false).gte('created_at', thirtyDaysAgo),
-        supabase.from('reports').select('created_at').gte('created_at', thirtyDaysAgo),
-        supabase.from('moderation_flags').select('ai_category').gte('created_at', thirtyDaysAgo),
+        supabase.from('profiles').select('created_at').gte('created_at', daysAgo),
+        supabase.from('profiles').select('last_seen').gte('last_seen', daysAgo),
+        supabase.from('posts').select('created_at').eq('is_deleted', false).gte('created_at', daysAgo),
+        supabase.from('comments').select('created_at').eq('is_deleted', false).gte('created_at', daysAgo),
+        supabase.from('reports').select('created_at').gte('created_at', daysAgo),
+        supabase.from('moderation_flags').select('ai_category').gte('created_at', daysAgo),
       ]);
 
       if (!mountedRef.current) return;
@@ -94,30 +91,31 @@ export default function Dashboard() {
       setTotalComments(counts.comments || 0);
       setActiveToday(counts.active_today || 0);
 
-      const buildDayBuckets = (sourceData, label = 'count') => {
+      // Dynamically build day buckets based on selected range
+      const buildDayBuckets = (sourceData) => {
         const days = [];
         const map = {};
-        for (let i = 29; i >= 0; i--) {
+        for (let i = range - 1; i >= 0; i--) {
           const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
           const key = d.toISOString().slice(0, 10);
-          days.push({ date: key, label: `${d.getDate()}/${d.getMonth() + 1}`, [label]: 0 });
+          days.push({ date: key, label: range > 14 ? `${d.getDate()}/${d.getMonth() + 1}` : `${d.getDate()}/${d.getMonth() + 1}`, count: 0 });
           map[key] = days[days.length - 1];
         }
         (sourceData || []).forEach((row) => {
           const key = row.created_at?.slice(0, 10);
-          if (key && map[key]) map[key][label] += 1;
+          if (key && map[key]) map[key].count += 1;
         });
         return days;
       };
 
-      setSignupsData(buildDayBuckets(allSignups.data, 'count'));
-      setPostsData(buildDayBuckets(allPosts.data, 'count'));
-      setCommentsData(buildDayBuckets(allComments.data, 'count'));
-      setReportsData(buildDayBuckets(allReports.data, 'count'));
+      setSignupsData(buildDayBuckets(allSignups.data));
+      setPostsData(buildDayBuckets(allPosts.data));
+      setCommentsData(buildDayBuckets(allComments.data));
+      setReportsData(buildDayBuckets(allReports.data));
 
       const activeDays = [];
       const activeMap = {};
-      for (let i = 29; i >= 0; i--) {
+      for (let i = range - 1; i >= 0; i--) {
         const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
         const key = d.toISOString().slice(0, 10);
         activeDays.push({ date: key, label: `${d.getDate()}/${d.getMonth() + 1}`, count: 0 });
@@ -130,6 +128,7 @@ export default function Dashboard() {
       });
       setActiveUsersData(activeDays);
 
+      // 24h is always 24 hours
       const hourBuckets = [];
       for (let i = 23; i >= 0; i--) {
         const d = new Date(now.getTime() - i * 60 * 60 * 1000);
@@ -161,295 +160,225 @@ export default function Dashboard() {
       inflightRef.current = false;
       if (mountedRef.current) setLoading(false);
     }
-  }, []);
+  }, []); // <-- Removed range from deps, we pass it manually
 
-  // Debounced trigger — realtime events call this, we collapse bursts.
-  const scheduleReload = useCallback(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      load();
-    }, 2000);
-  }, [load]);
-
-  // Initial load
+  // Trigger load when timeRange changes
   useEffect(() => {
     mountedRef.current = true;
-    load();
+    load(timeRange);
     return () => {
       mountedRef.current = false;
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [load]);
+  }, [load, timeRange]);
 
-  // Refetch when realtime manager reconnects after background/network flap
-  useRefetchOnReconnect(() => {
-    load();
-  });
+  const scheduleReload = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => load(timeRange), 2000);
+  }, [load, timeRange]);
 
-  // ---------------------------------------------------------------------
-  // Realtime subscriptions
-  // ---------------------------------------------------------------------
-  // - profiles UPDATE: catches last_seen heartbeats → online-now count
-  //   (heaviest event source — 2s debounce absorbs the storm)
-  // - posts INSERT / comments INSERT / reports INSERT: headline counts + charts
-  // - moderation_flags INSERT: flags pie
-  // ---------------------------------------------------------------------
-  useRealtime('dash:profiles-upd', {
-    event: 'UPDATE', schema: 'public', table: 'profiles',
-  }, scheduleReload);
+  useRefetchOnReconnect(() => load(timeRange));
 
-  useRealtime('dash:posts-ins', {
-    event: 'INSERT', schema: 'public', table: 'posts',
-  }, scheduleReload);
+  useRealtime('dash:profiles-upd', { event: 'UPDATE', schema: 'public', table: 'profiles' }, scheduleReload);
+  useRealtime('dash:posts-ins', { event: 'INSERT', schema: 'public', table: 'posts' }, scheduleReload);
+  useRealtime('dash:comments-ins', { event: 'INSERT', schema: 'public', table: 'comments' }, scheduleReload);
+  useRealtime('dash:reports-ins', { event: 'INSERT', schema: 'public', table: 'reports' }, scheduleReload);
+  useRealtime('dash:flags-ins', { event: 'INSERT', schema: 'public', table: 'moderation_flags' }, scheduleReload);
 
-  useRealtime('dash:comments-ins', {
-    event: 'INSERT', schema: 'public', table: 'comments',
-  }, scheduleReload);
+  if (loading && signupsData.length === 0) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+        <div style={{ width: 32, height: 32, border: '3px solid #1f1f1f', borderTopColor: '#ef4444', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
-  useRealtime('dash:reports-ins', {
-    event: 'INSERT', schema: 'public', table: 'reports',
-  }, scheduleReload);
-
-  useRealtime('dash:flags-ins', {
-    event: 'INSERT', schema: 'public', table: 'moderation_flags',
-  }, scheduleReload);
-
-  if (loading) return <div className="state">Loading dashboard…</div>;
-
-  const hasFlags = flagsByCategory.length > 0;
   const statusMeta = STATUS_LABEL[status] || STATUS_LABEL.idle;
 
+  const ChartTitle = ({ children, subtitle }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16 }}>
+      <div style={{ color: '#6d7382', fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase' }}>
+        {children}
+      </div>
+      {subtitle && <div style={{ color: '#1f1f1f', fontSize: 10, fontWeight: 600 }}>{subtitle}</div>}
+    </div>
+  );
+
   return (
-    <div>
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <h1 className="page-title">Dashboard</h1>
-          <span
-            title={`Realtime: ${statusMeta.label}`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 11,
-              fontWeight: 600,
-              color: 'var(--text-3)',
-              textTransform: 'uppercase',
-              letterSpacing: 1,
-            }}
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: statusMeta.color,
-                boxShadow: `0 0 8px ${statusMeta.color}`,
-              }}
-            />
+    <div style={{ backgroundColor: '#000', minHeight: '100%', maxWidth: 800, margin: '0 auto', padding: '0 16px', paddingBottom: 100 }}>
+      
+      {/* HEADER */}
+      <div style={{ paddingTop: 24, paddingBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h1 style={{ color: '#fff', fontSize: 28, fontWeight: 800, margin: 0 }}>Dashboard</h1>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: statusMeta.color, letterSpacing: 1.5 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusMeta.color, boxShadow: `0 0 8px ${statusMeta.color}` }} />
             {statusMeta.label}
           </span>
         </div>
-        <p className="page-subtitle">Live platform statistics</p>
+        <p style={{ color: '#6d7382', fontSize: 13, marginTop: 6, margin: 0 }}>Live platform statistics</p>
       </div>
 
-      {/* Big unboxed totals */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-          gap: 24,
-          marginBottom: 28,
-          padding: '8px 4px',
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', lineHeight: 1, letterSpacing: -1 }}>
-            {totalUsers}
+      {/* BIG TOTALS GRID */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 32 }}>
+        {[
+          { label: 'Total Users', value: totalUsers },
+          { label: 'Total Posts', value: totalPosts },
+          { label: 'Reports', value: totalReports },
+          { label: 'Comments', value: totalComments },
+        ].map(s => (
+          <div key={s.label}>
+            <div style={{ color: '#fff', fontSize: 38, fontWeight: 900, lineHeight: 1, letterSpacing: -1.5 }}>{s.value}</div>
+            <div style={{ color: '#6d7382', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginTop: 8 }}>{s.label}</div>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>
-            Total Users
-          </div>
+        ))}
+      </div>
+
+      <div style={{ height: 1, backgroundColor: '#1f1f1f', marginBottom: 24 }} />
+
+      {/* LIVE ROW */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 32 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ color: '#fff', fontSize: 32, fontWeight: 900 }}>{onlineNow}</div>
+          <div style={{ color: '#6d7382', fontSize: 12, marginTop: 4, textTransform: 'uppercase', letterSpacing: 1 }}>online now</div>
         </div>
-        <div>
-          <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', lineHeight: 1, letterSpacing: -1 }}>
-            {totalPosts}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>
-            Total Posts
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', lineHeight: 1, letterSpacing: -1 }}>
-            {totalReports}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>
-            Reports
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', lineHeight: 1, letterSpacing: -1 }}>
-            {totalComments}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>
-            Comments
-          </div>
+        <div style={{ width: 1, height: 48, backgroundColor: '#1f1f1f' }} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ color: '#fff', fontSize: 32, fontWeight: 900 }}>{activeToday}</div>
+          <div style={{ color: '#6d7382', fontSize: 12, marginTop: 4, textTransform: 'uppercase', letterSpacing: 1 }}>active today</div>
         </div>
       </div>
 
-      {/* Live row */}
-      <div className="card live-card">
-        <div className="live-row">
-          <span className="live-dot" />
-          <span className="live-count">{onlineNow}</span>
-          <span className="live-label">online now</span>
-        </div>
-        <div className="live-divider" />
-        <div className="live-row">
-          <span className="live-count">{activeToday}</span>
-          <span className="live-label">active today</span>
-        </div>
+      <div style={{ height: 1, backgroundColor: '#1f1f1f', marginBottom: 24 }} />
+
+      {/* TIME FILTER TABS */}
+      <div style={{ display: 'flex', gap: 20, marginBottom: 32, borderBottom: '1px solid #1f1f1f', paddingBottom: 12 }}>
+        {[
+          { label: 'Last 7 Days', value: 7 },
+          { label: 'Last 30 Days', value: 30 },
+          { label: 'Last 90 Days', value: 90 },
+        ].map(opt => {
+          const active = timeRange === opt.value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => setTimeRange(opt.value)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                borderBottom: active ? '2px solid #FFD700' : '2px solid transparent',
+                color: active ? '#FFD700' : '#6d7382',
+                fontSize: 13,
+                fontWeight: 800,
+                letterSpacing: 1.5,
+                padding: '8px 0',
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                marginBottom: -13, // Pulls the active underline down to sit on the border
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Chart 1 — Signups */}
-      <div className="card chart-card">
-        <div className="chart-head">
-          <div className="chart-title">New Signups · Last 30 Days</div>
-        </div>
-        <div className="chart-body">
-          <ResponsiveContainer width="100%" height={190}>
-            <LineChart data={signupsData} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }}
-                interval={Math.max(0, Math.floor(signupsData.length / 5) - 1)}
-                axisLine={{ stroke: '#1f1f1f' }} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false}
-                axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Line type="monotone" dataKey="count" stroke="#ef4444"
-                strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#ef4444' }} />
+      {/* CHARTS */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+        
+        {/* Signups */}
+        <div>
+          <ChartTitle subtitle={`${timeRange} days`}>New Signups</ChartTitle>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={signupsData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }} interval={Math.max(0, Math.floor(signupsData.length / 5) - 1)} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: '#333' }} />
+              <Line type="monotone" dataKey="count" stroke="#ef4444" strokeWidth={3} dot={false} activeDot={{ r: 6, fill: '#ef4444', stroke: '#000', strokeWidth: 2 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
-      </div>
 
-      {/* Chart 2 — Activity 24h */}
-      <div className="card chart-card">
-        <div className="chart-head">
-          <div className="chart-title">Activity · Last 24 Hours</div>
-        </div>
-        <div className="chart-body">
+        {/* Activity 24h - Fixed to 24h despite filter */}
+        <div>
+          <ChartTitle subtitle="24 hours">Activity</ChartTitle>
           <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={hourlyData} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }}
-                interval={3} axisLine={{ stroke: '#1f1f1f' }} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false}
-                axisLine={false} tickLine={false} />
+            <BarChart data={hourlyData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }} interval={3} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
               <Bar dataKey="count" fill="#ef4444" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
 
-      {/* Chart 3 — Posts */}
-      <div className="card chart-card">
-        <div className="chart-head">
-          <div className="chart-title">Posts · Last 30 Days</div>
-        </div>
-        <div className="chart-body">
+        {/* Posts */}
+        <div>
+          <ChartTitle subtitle={`${timeRange} days`}>Posts</ChartTitle>
           <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={postsData} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }}
-                interval={Math.max(0, Math.floor(postsData.length / 5) - 1)}
-                axisLine={{ stroke: '#1f1f1f' }} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false}
-                axisLine={false} tickLine={false} />
+            <BarChart data={postsData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }} interval={Math.max(0, Math.floor(postsData.length / 5) - 1)} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
               <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
 
-      {/* Chart 4 — Comments */}
-      <div className="card chart-card">
-        <div className="chart-head">
-          <div className="chart-title">Comments · Last 30 Days</div>
-        </div>
-        <div className="chart-body">
+        {/* Comments */}
+        <div>
+          <ChartTitle subtitle={`${timeRange} days`}>Comments</ChartTitle>
           <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={commentsData} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }}
-                interval={Math.max(0, Math.floor(commentsData.length / 5) - 1)}
-                axisLine={{ stroke: '#1f1f1f' }} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false}
-                axisLine={false} tickLine={false} />
+            <BarChart data={commentsData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }} interval={Math.max(0, Math.floor(commentsData.length / 5) - 1)} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
               <Bar dataKey="count" fill="#22c55e" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
 
-      {/* Chart 5 — Active users/day */}
-      <div className="card chart-card">
-        <div className="chart-head">
-          <div className="chart-title">Active Users · Last 30 Days</div>
-        </div>
-        <div className="chart-body">
-          <ResponsiveContainer width="100%" height={190}>
-            <LineChart data={activeUsersData} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }}
-                interval={Math.max(0, Math.floor(activeUsersData.length / 5) - 1)}
-                axisLine={{ stroke: '#1f1f1f' }} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false}
-                axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Line type="monotone" dataKey="count" stroke="#a855f7"
-                strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#a855f7' }} />
+        {/* Active Users */}
+        <div>
+          <ChartTitle subtitle={`${timeRange} days`}>Active Users</ChartTitle>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={activeUsersData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }} interval={Math.max(0, Math.floor(activeUsersData.length / 5) - 1)} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: '#333' }} />
+              <Line type="monotone" dataKey="count" stroke="#a855f7" strokeWidth={3} dot={false} activeDot={{ r: 6, fill: '#a855f7', stroke: '#000', strokeWidth: 2 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
-      </div>
 
-      {/* Chart 6 — Reports */}
-      <div className="card chart-card">
-        <div className="chart-head">
-          <div className="chart-title">Reports · Last 30 Days</div>
-        </div>
-        <div className="chart-body">
-          <ResponsiveContainer width="100%" height={190}>
-            <LineChart data={reportsData} margin={{ top: 12, right: 12, left: -18, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }}
-                interval={Math.max(0, Math.floor(reportsData.length / 5) - 1)}
-                axisLine={{ stroke: '#1f1f1f' }} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false}
-                axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Line type="monotone" dataKey="count" stroke="#f59e0b"
-                strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#f59e0b' }} />
+        {/* Reports */}
+        <div>
+          <ChartTitle subtitle={`${timeRange} days`}>Reports</ChartTitle>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={reportsData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6d7382' }} interval={Math.max(0, Math.floor(reportsData.length / 5) - 1)} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#6d7382' }} allowDecimals={false} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: '#333' }} />
+              <Line type="monotone" dataKey="count" stroke="#f59e0b" strokeWidth={3} dot={false} activeDot={{ r: 6, fill: '#f59e0b', stroke: '#000', strokeWidth: 2 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
-      </div>
 
-      {/* Chart 7 — Flags by category (pie) */}
-      <div className="card chart-card">
-        <div className="chart-head">
-          <div className="chart-title">Flags by Category · Last 30 Days</div>
-        </div>
-        <div className="chart-body">
-          {!hasFlags && (
+        {/* Flags by Category */}
+        <div>
+          <ChartTitle subtitle={`${timeRange} days`}>Flags by Category</ChartTitle>
+          {flagsByCategory.length === 0 ? (
             <div style={{ padding: 24, textAlign: 'center', color: '#6d7382', fontSize: 13 }}>
-              No flags in the last 30 days.
+              No flags in the last {timeRange} days.
             </div>
-          )}
-          {hasFlags && (
+          ) : (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie
@@ -459,10 +388,9 @@ export default function Dashboard() {
                   cx="50%"
                   cy="50%"
                   outerRadius={80}
-                  innerRadius={45}
-                  paddingAngle={3}
-                  label={(entry) => `${entry.name}: ${entry.value}`}
-                  labelLine={false}
+                  innerRadius={50}
+                  paddingAngle={5}
+                  stroke="none"
                 >
                   {flagsByCategory.map((entry, i) => (
                     <Cell key={i} fill={entry.color} />
@@ -473,6 +401,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           )}
         </div>
+
       </div>
     </div>
   );

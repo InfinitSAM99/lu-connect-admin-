@@ -5,6 +5,9 @@ import Splash from './components/Splash.jsx';
 import ErrorCatcher from './components/ErrorCatcher.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
+import SecurityCenter from './pages/SecurityCenter.jsx';
+import RecoveryMessages from './pages/RecoveryMessages.jsx';
+import HelpDesk from './pages/HelpDesk.jsx';
 import Students from './pages/Students.jsx';
 import PendingApprovals from './pages/PendingApprovals.jsx';
 import Posts from './pages/Posts.jsx';
@@ -42,6 +45,9 @@ function AdminRoutes() {
       <Route path="/" element={<AdminGuard><Layout /></AdminGuard>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="security-center" element={<SecurityCenter />} />
+        <Route path="recovery-messages" element={<RecoveryMessages />} />
+        <Route path="help-desk" element={<HelpDesk />} />
         <Route path="students" element={<Students />} />
         <Route path="pending-approvals" element={<PendingApprovals />} />
         <Route path="posts" element={<Posts />} />

@@ -58,3 +58,8 @@ export const RocketIcon = (p) => <I {...p}><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s
 export const ImageIcon = (p) => <I {...p}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></I>;
 export const MapPinIcon = (p) => <I {...p}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></I>;
 export const PencilIconAlt = (p) => <I {...p}><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></I>;
+
+// ---- Security / Navigation additions ----
+export const LockIcon = (p) => <I {...p}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></I>;
+export const AlertCircleIcon = (p) => <I {...p}><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></I>;
+export const ChevronLeftIcon = (p) => <I {...p}><path d="m15 18-6-6 6-6"/></I>;
