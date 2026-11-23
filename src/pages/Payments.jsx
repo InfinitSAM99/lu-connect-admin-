@@ -101,13 +101,11 @@ export default function Payments() {
     setDragY(0);
   };
 
-  // ---- Boost side-effects on approve ----
   const approveLinkedBoost = async (payment) => {
     if (payment.purpose !== 'post_boost' && payment.purpose !== 'followers') {
       return { ok: true };
     }
 
-    // Look up the boost linked to this payment
     let boostRow = null;
     const { data: found, error: findErr } = await supabase
       .from('boosts')
@@ -117,9 +115,6 @@ export default function Payments() {
     if (findErr) return { ok: false, msg: findErr.message };
     boostRow = found;
 
-    // If no boost row exists yet, create it from the payment metadata.
-    // Status starts as 'pending' — admin does a second approval on the
-    // Boosts page, which flips it to 'active' and lets the engine deliver.
     if (!boostRow) {
       const meta = payment.metadata || {};
       const postId = meta.post_id;
@@ -151,14 +146,11 @@ export default function Payments() {
         .single();
       if (createErr) return { ok: false, msg: createErr.message };
 
-      // Mark the post as boost_paid so the UI shows the badge.
-      // boosted_until gets set on the second approval (Boosts page).
       await supabase.from('posts').update({ boost_paid: true }).eq('id', postId);
 
       return { ok: true, created: true, boostId: created.id };
     }
 
-    // Boost already exists — original behavior: flip to active
     const now = new Date();
     const days = boostRow.duration_days || boostRow.delivery_days || 5;
     const expires = new Date(now.getTime() + days * 86400000);
@@ -325,15 +317,15 @@ export default function Payments() {
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         padding: '32px 24px 28px', gap: 12,
       }}>
-        <CreditCardIcon width={72} height={72} />
-        <div style={{ fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: 0.2 }}>
+        <CreditCardIcon width={56} height={56} color="#22c55e" />
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', letterSpacing: 0.5 }}>
           Payments
         </div>
         <div style={{
           fontSize: 13, color: 'var(--text-3)',
           textAlign: 'center', maxWidth: 320, lineHeight: 1.5,
         }}>
-          Review M-Pesa submissions · verify · followers · boosts
+          Review M-Pesa submissions, verify users, and manage boosts.
         </div>
       </div>
 
@@ -343,68 +335,76 @@ export default function Payments() {
         </div>
       )}
 
-      {/* DOT ROWS */}
-      <div style={{ borderTop: '1px solid var(--border)' }}>
-        {STATUS_ROWS.map((r) => (
-          <button
-            key={r.key}
-            onClick={() => setRowOpen(r.key)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 18,
-              width: '100%', padding: '20px 16px',
-              background: 'transparent', border: 'none',
-              borderBottom: '1px solid var(--border)',
-              color: '#fff', cursor: 'pointer', textAlign: 'left',
-            }}
-          >
-            <span style={{ width: 10, height: 10, borderRadius: 5, background: r.color, flexShrink: 0 }} />
-            <span style={{ flex: 1, fontSize: 16, fontWeight: 500 }}>{r.label}</span>
-            <span style={{ fontSize: 15, fontWeight: 700, color: counts[r.key] > 0 ? '#fff' : 'var(--text-3)' }}>
-              {counts[r.key]}
-            </span>
-            <span style={{ display: 'inline-flex', color: 'var(--text-3)', opacity: 0.5 }}>
-              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m9 18 6-6-6-6" />
-              </svg>
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {loading && <div className="state">Loading…</div>}
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            border: '3px solid rgba(239,68,68,0.25)',
+            borderTopColor: '#ef4444',
+            animation: 'spin 0.8s linear infinite',
+          }} />
+        </div>
+      ) : (
+        <div style={{ borderTop: '1px solid var(--border)' }}>
+          {STATUS_ROWS.map((r) => (
+            <button
+              key={r.key}
+              onClick={() => setRowOpen(r.key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 16,
+                width: '100%', padding: '20px 16px',
+                background: 'transparent', border: 'none',
+                borderBottom: '1px solid var(--border)',
+                color: '#fff', cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <span style={{ width: 10, height: 10, borderRadius: 5, background: r.color, flexShrink: 0 }} />
+              <span style={{ flex: 1, fontSize: 16, fontWeight: 500 }}>{r.label}</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: counts[r.key] > 0 ? '#fff' : 'var(--text-3)' }}>
+                {counts[r.key]}
+              </span>
+              <span style={{ display: 'inline-flex', color: 'var(--text-3)', opacity: 0.5 }}>
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ROW DRAWER */}
       {rowOpen && (
         <>
           <div
             onClick={() => setRowOpen(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 200 }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.8)', zIndex: 200 }}
           />
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               position: 'fixed', left: 0, right: 0, bottom: 0,
-              maxHeight: '85vh', background: 'var(--surface)',
-              borderTopLeftRadius: 20, borderTopRightRadius: 20,
+              maxHeight: '90vh', background: '#0a0a0a',
+              borderTopLeftRadius: 24, borderTopRightRadius: 24,
               zIndex: 210, display: 'flex', flexDirection: 'column',
               overflow: 'hidden', animation: 'drawer-slide-up 250ms ease-out',
             }}
           >
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center',
-              padding: '10px 0 6px',
+              padding: '12px 0 16px',
             }}>
-              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.35)' }} />
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.3)' }} />
             </div>
 
             <div style={{
-              padding: '8px 20px 20px',
+              padding: '8px 20px 16px',
               borderBottom: '1px solid var(--border)',
-              display: 'flex', alignItems: 'center', gap: 14,
+              display: 'flex', alignItems: 'center', gap: 12,
             }}>
               <span style={{
-                width: 12, height: 12, borderRadius: 6,
+                width: 10, height: 10, borderRadius: 5,
                 background: STATUS_ROWS.find((r) => r.key === rowOpen)?.color || '#fff',
               }} />
               <div>
@@ -420,25 +420,24 @@ export default function Payments() {
                 onClick={() => setRowOpen(null)}
                 style={{ background: 'transparent', border: 'none', color: '#fff', padding: 8, cursor: 'pointer' }}
               >
-                <XIcon width={22} height={22} />
+                <XIcon width={24} height={24} />
               </button>
             </div>
 
-            <div style={{ overflowY: 'auto', flex: 1, paddingBottom: 24 }}>
+            <div style={{ overflowY: 'auto', flex: 1, paddingBottom: 20 }}>
               {rowItems.length === 0 && (
                 <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-                  Nothing here
+                  Nothing here.
                 </div>
               )}
-              {rowItems.map((p, i) => (
+              {rowItems.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => openPayment(p)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 14,
-                    width: '100%', padding: '14px 20px',
+                    width: '100%', padding: '16px',
                     background: 'transparent', border: 'none',
-                    borderTop: i === 0 ? '1px solid var(--border)' : 'none',
                     borderBottom: '1px solid var(--border)',
                     color: '#fff', cursor: 'pointer', textAlign: 'left',
                   }}
@@ -475,14 +474,14 @@ export default function Payments() {
         <>
           <div
             onClick={() => setActive(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 300 }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.8)', zIndex: 300 }}
           />
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               position: 'fixed', left: 0, right: 0, bottom: 0,
-              maxHeight: '92vh', background: 'var(--surface)',
-              borderTopLeftRadius: 20, borderTopRightRadius: 20,
+              maxHeight: '92vh', background: '#0a0a0a',
+              borderTopLeftRadius: 24, borderTopRightRadius: 24,
               zIndex: 310, display: 'flex', flexDirection: 'column',
               overflow: 'hidden', animation: 'drawer-slide-up 250ms ease-out',
               transform: `translateY(${dragY}px)`,
@@ -495,17 +494,16 @@ export default function Payments() {
               onTouchEnd={onTouchEnd}
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: '10px 0 6px', flexShrink: 0, touchAction: 'none', cursor: 'grab',
+                padding: '12px 0 16px', flexShrink: 0, touchAction: 'none', cursor: 'grab',
               }}
             >
-              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.35)' }} />
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.3)' }} />
             </div>
 
             <div style={{ overflowY: 'auto', flex: 1, paddingBottom: 28 }}>
-              {/* Header */}
               <div style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: '8px 20px 20px',
+                padding: '0 20px 20px',
                 borderBottom: '1px solid var(--border)',
                 position: 'relative',
               }}>
@@ -538,16 +536,15 @@ export default function Payments() {
                 <button
                   onClick={() => setActive(null)}
                   style={{
-                    position: 'absolute', top: 4, right: 12,
+                    position: 'absolute', top: 0, right: 12,
                     background: 'transparent', border: 'none',
                     color: '#fff', padding: 8, cursor: 'pointer',
                   }}
                 >
-                  <XIcon width={22} height={22} />
+                  <XIcon width={24} height={24} />
                 </button>
               </div>
 
-              {/* Details */}
               <div style={{ padding: '20px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{
                   fontSize: 12, fontWeight: 700, color: 'var(--text-3)',
@@ -565,24 +562,23 @@ export default function Payments() {
                 )}
               </div>
 
-              {/* Reject reason input */}
               {active.status === 'pending' && (
                 <div style={{ padding: '20px', borderBottom: '1px solid var(--border)' }}>
                   <div style={{
                     fontSize: 12, fontWeight: 700, color: 'var(--text-3)',
                     textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12,
                   }}>
-                    Note (shown to user on rejection)
+                    Note to user (on rejection)
                   </div>
                   <textarea
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="Optional — e.g. code not found, amount mismatch…"
+                    placeholder="Optional — e.g. code not found"
                     maxLength={500}
                     style={{
                       width: '100%', minHeight: 80,
-                      background: 'var(--surface-2)', border: 'none',
-                      borderRadius: 14, padding: 14,
+                      background: '#141414', border: 'none',
+                      borderRadius: 12, padding: 14,
                       color: '#fff', fontSize: 14, lineHeight: 1.5,
                       outline: 'none', fontFamily: 'inherit',
                       resize: 'vertical',
@@ -591,7 +587,6 @@ export default function Payments() {
                 </div>
               )}
 
-              {/* Actions */}
               <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {isAdmin && active.status === 'pending' && (
                   <>
@@ -600,15 +595,15 @@ export default function Payments() {
                       disabled={busy}
                       style={actionBtn('transparent', '#22c55e', '1.5px solid #22c55e')}
                     >
-                      <CheckCircleIcon width={20} height={20} />
+                      <CheckCircleIcon width={20} height={20} color="#22c55e" />
                       Approve
                     </button>
                     <button
                       onClick={reject}
                       disabled={busy}
-                      style={actionBtn('var(--surface-2)', '#f97316')}
+                      style={actionBtn('#1f1f1f', '#f97316')}
                     >
-                      <XCircleIcon width={20} height={20} />
+                      <XCircleIcon width={20} height={20} color="#f97316" />
                       Reject
                     </button>
                   </>
@@ -617,9 +612,9 @@ export default function Payments() {
                   <button
                     onClick={revoke}
                     disabled={busy}
-                    style={actionBtn('transparent', 'var(--brand)', '1px solid var(--brand)')}
+                    style={actionBtn('transparent', '#ef4444', '1px solid #ef4444')}
                   >
-                    <BanIcon width={18} height={18} />
+                    <BanIcon width={18} height={18} color="#ef4444" />
                     Revoke reward
                   </button>
                 )}
@@ -629,13 +624,13 @@ export default function Payments() {
                     disabled={busy}
                     style={actionBtn('transparent', '#22c55e', '1.5px solid #22c55e')}
                   >
-                    <CheckCircleIcon width={20} height={20} />
+                    <CheckCircleIcon width={20} height={20} color="#22c55e" />
                     Re-approve
                   </button>
                 )}
                 {active.status !== 'pending' && (
                   <div style={{
-                    padding: 14, background: 'var(--surface-2)',
+                    padding: 14, background: '#141414',
                     borderRadius: 12, fontSize: 13,
                     color: 'var(--text-3)', textAlign: 'center',
                   }}>
@@ -653,7 +648,7 @@ export default function Payments() {
 
 function DetailRow({ label, value }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', gap: 12 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', gap: 12 }}>
       <span style={{ fontSize: 13, color: 'var(--text-3)' }}>{label}</span>
       <span style={{ fontSize: 13, color: '#fff', fontWeight: 500, textAlign: 'right' }}>{value}</span>
     </div>
