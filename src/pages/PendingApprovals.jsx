@@ -27,6 +27,8 @@ function timeAgo(date) {
 export default function PendingApprovals() {
   const { profile: me } = useAuth();
   const [items, setItems] = useState([]);
+  const [autoApprove, setAutoApprove] = useState(false);
+  const [updatingSetting, setUpdatingSetting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [rowOpen, setRowOpen] = useState(null);
@@ -35,6 +37,19 @@ export default function PendingApprovals() {
   const [dragY, setDragY] = useState(0);
   const startYRef = useRef(0);
   const activeRef = useRef(false);
+
+  const fetchSettings = async () => {
+    const { data } = await supabase.from('system_settings').select('auto_approve').eq('id', 1).single();
+    if (data) setAutoApprove(data.auto_approve);
+  };
+
+  const toggleAutoApprove = async () => {
+    setUpdatingSetting(true);
+    const newValue = !autoApprove;
+    const { error } = await supabase.from('system_settings').update({ auto_approve: newValue, updated_at: new Date() }).eq('id', 1);
+    if (!error) setAutoApprove(newValue);
+    setUpdatingSetting(false);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -52,7 +67,7 @@ export default function PendingApprovals() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); fetchSettings(); }, []);
 
   const onTouchStart = (e) => {
     startYRef.current = e.touches[0].clientY;
@@ -183,6 +198,40 @@ export default function PendingApprovals() {
         </div>
       </div>
 
+      
+      {/* AUTO-APPROVE TOGGLE */}
+      <div style={{ margin: '0 16px 24px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Auto-Approve Registrations</div>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.4 }}>
+              {autoApprove 
+                ? "New students are automatically approved." 
+                : "Students must be manually reviewed and approved."}
+            </div>
+          </div>
+          <button
+            onClick={toggleAutoApprove}
+            disabled={updatingSetting}
+            style={{
+              width: 52, height: 30, borderRadius: 15,
+              background: autoApprove ? '#22c55e' : '#1f1f1f',
+              border: 'none', position: 'relative', cursor: 'pointer',
+              transition: 'background 200ms',
+              opacity: updatingSetting ? 0.5 : 1
+            }}
+          >
+            <div style={{
+              width: 24, height: 24, borderRadius: 12,
+              background: '#fff',
+              position: 'absolute', top: 3,
+              left: autoApprove ? 26 : 4,
+              transition: 'left 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+              boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+            }} />
+          </button>
+        </div>
+      </div>
       {err && (
         <div style={{ margin: '0 16px 12px', background: '#7f1d1d', color: '#fff', padding: 10, borderRadius: 8, fontSize: 13 }}>
           {err}

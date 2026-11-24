@@ -1,3 +1,4 @@
+import Sidebar from '../components/Sidebar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRealtime, useRefetchOnReconnect, useRealtimeStatus } from '../lib/realtime';
@@ -206,7 +207,8 @@ export default function Dashboard() {
   );
 
   return (
-    <div style={{ backgroundColor: '#000', minHeight: '100%', maxWidth: 800, margin: '0 auto', padding: '0 16px', paddingBottom: 100 }}>
+    <div style={{ backgroundColor: '#000', minHeight: '100%', maxWidth: 800, margin: '0 auto', padding: '0 16px', paddingBottom: 100, paddingBottom: 100 }}>
+      <Sidebar />
       
       {/* HEADER */}
       <div style={{ paddingTop: 24, paddingBottom: 20 }}>

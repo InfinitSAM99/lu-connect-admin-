@@ -34,9 +34,10 @@ export default function Posts() {
 
   const load = async () => {
     setLoading(true);
+    // ✅ FIXED: Fetching from post_media table relationship
     const { data } = await supabase
       .from('posts')
-      .select('id, content, created_at, author_id, is_deleted, profiles:author_id(id, full_name, avatar_url, username)')
+      .select('id, content, created_at, author_id, is_deleted, post_media(media_url), profiles:author_id(id, full_name, avatar_url, username)')
       .eq('is_deleted', false)
       .order('created_at', { ascending: false })
       .limit(500);
@@ -333,18 +334,36 @@ export default function Posts() {
                     {fullDate(p.created_at)}
                   </div>
 
-                  <div
-                    style={{
-                      fontSize: 15,
-                      lineHeight: 1.5,
-                      color: '#fff',
-                      marginBottom: 12,
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                    }}
-                  >
-                    {p.content || '(media only)'}
-                  </div>
+                  {p.content && (
+                    <div
+                      style={{
+                        fontSize: 15,
+                        lineHeight: 1.5,
+                        color: '#fff',
+                        marginBottom: p.post_media?.length > 0 ? 12 : 16,
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {p.content}
+                    </div>
+                  )}
+
+                  {/* ✅ FIXED: Render all images from the post_media array */}
+                  {p.post_media && p.post_media.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                      {p.post_media.map((mediaItem, index) => (
+                        <div key={index} style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                          <img 
+                            src={mediaItem.media_url} 
+                            alt="Post attachment" 
+                            style={{ width: '100%', maxHeight: 400, objectFit: 'cover', display: 'block' }} 
+                            loading="lazy"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {isAdmin && (
                     <button

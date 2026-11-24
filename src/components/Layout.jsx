@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { realtime } from '../lib/realtime';
 import { probeRealtimeTransport } from '../lib/realtimeDiag';
 import { App as CapApp } from '@capacitor/app';
+import NotificationBar from './NotificationBar';
 import {
   DashboardIcon, ChartIcon, ClockIcon, UsersIcon, FileTextIcon, MessageIcon,
   AlertTriangleIcon, MegaphoneIcon, CalendarIcon, BuildingIcon,
@@ -579,6 +580,7 @@ export default function Layout() {
           </div>
         </>
       )}
+      <NotificationBar />
     </div>
   );
 }
