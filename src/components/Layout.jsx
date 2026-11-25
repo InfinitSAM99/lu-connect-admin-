@@ -17,6 +17,7 @@ const SECTIONS = [
     title: 'Overview',
     links: [
       { to: '/dashboard', label: 'Dashboard', icon: DashboardIcon },
+      { to: '/visitors', label: 'Visitors', icon: ChartIcon },
       { to: '/ai', label: 'AI Assistant', icon: ChartIcon },
     ],
   },
@@ -62,6 +63,7 @@ const SECTIONS = [
 
 const PAGE_TITLES = {
   '/dashboard': 'Dashboard',
+  '/visitors': 'Visitors',
   '/security-center': 'Security Center',
   '/recovery-messages': 'Recovery Messages',
   '/help-desk': 'Help Desk',
