@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
+import { supabase } from './lib/supabase';
 import Layout from './components/Layout.jsx';
 import Splash from './components/Splash.jsx';
 import ErrorCatcher from './components/ErrorCatcher.jsx';
@@ -29,9 +31,20 @@ import Visitors from './pages/Visitors.jsx';
 
 function AdminGuard({ children }) {
   const { user, isAdmin, loading } = useAuth();
-  if (loading) return <div className="state">Verifying access…</div>;
-  if (!user) return <Navigate to="/login" replace />;
-  if (!isAdmin) return (
+  const [checking, setChecking] = useState(true);
+  const [hasSession, setHasSession] = useState(false);
+
+  useEffect(() => {
+    // Double-check session directly from storage if context is slow
+    supabase.auth.getSession().then(({ data }) => {
+      setHasSession(!!data.session);
+      setChecking(false);
+    });
+  }, [user]);
+
+  if (loading || checking) return <div className="state">Verifying access…</div>;
+  if (!user && !hasSession) return <Navigate to="/login" replace />;
+  if (user && !isAdmin) return (
     <div className="state">
       <h3>Access Denied</h3>
       <p>You do not have permission to access LU CONNECT Admin.</p>
