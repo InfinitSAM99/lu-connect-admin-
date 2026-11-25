@@ -7,7 +7,7 @@ import Splash from './components/Splash.jsx';
 import ErrorCatcher from './components/ErrorCatcher.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
-import SecurityCenter from './pages/SecurityCenter.jsx';
+import SecurityThreats from './pages/SecurityThreats.jsx'; // Our new page
 import RecoveryMessages from './pages/RecoveryMessages.jsx';
 import HelpDesk from './pages/HelpDesk.jsx';
 import Students from './pages/Students.jsx';
@@ -35,7 +35,6 @@ function AdminGuard({ children }) {
   const [hasSession, setHasSession] = useState(false);
 
   useEffect(() => {
-    // Double-check session directly from storage if context is slow
     supabase.auth.getSession().then(({ data }) => {
       setHasSession(!!data.session);
       setChecking(false);
@@ -60,7 +59,10 @@ function AdminRoutes() {
       <Route path="/" element={<AdminGuard><Layout /></AdminGuard>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
-        <Route path="security-center" element={<SecurityCenter />} />
+        
+        {/* Keep your existing routes */}
+        <Route path="security-threats" element={<SecurityThreats />} />
+        
         <Route path="recovery-messages" element={<RecoveryMessages />} />
         <Route path="help-desk" element={<HelpDesk />} />
         <Route path="students" element={<Students />} />
