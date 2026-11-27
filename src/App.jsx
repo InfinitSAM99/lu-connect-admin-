@@ -1,3 +1,4 @@
+import { StatusBar } from '@capacitor/status-bar';
 import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
@@ -92,6 +93,15 @@ function AdminRoutes() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Make status bar transparent and overlay the web view
+    StatusBar.setOverlaysWebView({ overlay: true });
+    StatusBar.setBackgroundColor({ color: '#00000000' }); // Transparent
+    StatusBar.setStyle({ style: 'DARK' }); // Dark text/icons? Wait, dark background = LIGHT icons.
+    // Actually, if background is black, we want light icons.
+    StatusBar.setStyle({ style: 'LIGHT' });
+  }, []);
+
   return (
     <>
       <Splash />
