@@ -1,46 +1,39 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext.jsx';
+import VerticalStepper from '../components/VerticalStepper';
 import {
-  CreditCardIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  BanIcon,
-  XIcon,
-  UserIcon,
+  CreditCardIcon, CheckCircleIcon, UserIcon,
+  ChevronRightIcon,
 } from '../components/Icons.jsx';
 
-const STATUS_ROWS = [
-  { key: 'pending',  label: 'Pending review', color: '#eab308' },
-  { key: 'approved', label: 'Approved',       color: '#22c55e' },
-  { key: 'rejected', label: 'Rejected',       color: '#ef4444' },
-  { key: 'all',      label: 'All payments',   color: '#6d7382' },
+const STATUS_TABS = [
+  { key: 'pending',  label: 'Pending',  color: '#f59e0b' },
+  { key: 'approved', label: 'Approved', color: '#22c55e' },
+  { key: 'rejected', label: 'Rejected', color: '#ef4444' },
+  { key: 'all',      label: 'All',      color: '#6d7382' },
 ];
 
+const PURPOSE_LABELS = {
+  verify:     'Verification',
+  post_boost: 'Post Boost',
+  followers:  'Follower Package',
+};
+
 const CATEGORY_LABELS = {
-  likes: 'Likes',
-  comments: 'Comments',
-  views: 'Views',
-  followers: 'Followers',
-  post: 'Boost duration',
-  bundle: 'Campus Famous',
+  likes: 'Likes', comments: 'Comments', views: 'Views',
+  followers: 'Followers', post: 'Duration', bundle: 'Campus Famous',
 };
 
 function purposeLabel(purpose, metadata) {
-  switch (purpose) {
-    case 'verify': return 'Verification';
-    case 'followers':
-      return `Followers · +${(metadata?.followers || 0).toLocaleString()}`;
-    case 'post_boost': {
-      const cat = metadata?.category;
-      const qty = metadata?.quantity;
-      if (cat && CATEGORY_LABELS[cat]) {
-        return `${CATEGORY_LABELS[cat]}${qty ? ` · ${qty.toLocaleString()}` : ''}`;
-      }
-      return 'Post Boost';
-    }
-    default: return purpose;
+  if (purpose === 'followers') return `Followers · +${(metadata?.followers || 0).toLocaleString()}`;
+  if (purpose === 'post_boost') {
+    const cat = metadata?.category;
+    const qty = metadata?.quantity;
+    if (cat && CATEGORY_LABELS[cat]) return `Boost · ${CATEGORY_LABELS[cat]}${qty ? ` · ${qty.toLocaleString()}` : ''}`;
+    return 'Post Boost';
   }
+  return PURPOSE_LABELS[purpose] || purpose;
 }
 
 function timeAgo(date) {
@@ -53,24 +46,33 @@ function timeAgo(date) {
   return new Date(date).toLocaleDateString();
 }
 
+function formatDate(date) {
+  if (!date) return '';
+  return new Date(date).toLocaleString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
 export default function Payments() {
-  const { profile: me, isAdmin } = useAuth();
+  const { profile: me } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState('');
-  const [rowOpen, setRowOpen] = useState(null);
+  const [activeTab, setActiveTab] = useState('pending');
   const [active, setActive] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [busy, setBusy] = useState(false);
-  const [dragY, setDragY] = useState(0);
-  const startYRef = useRef(0);
-  const activeRef = useRef(false);
+  const [showRejectInput, setShowRejectInput] = useState(false);
+
+  // 0 = nothing checked. 1 = payment checked. 2 = user request checked. 3 = admin review.
+  const [reviewProgress, setReviewProgress] = useState(0);
 
   const load = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('payments')
-      .select('*, profiles:user_id(id, full_name, email, avatar_url, is_verified, displayed_follower_count)')
+      .select('*, profiles:user_id(id, full_name, email, avatar_url, is_verified)')
       .order('created_at', { ascending: false })
       .limit(300);
     if (error) setErrMsg(error.message);
@@ -80,98 +82,57 @@ export default function Payments() {
 
   useEffect(() => { load(); }, []);
 
-  const onTouchStart = (e) => {
-    startYRef.current = e.touches[0].clientY;
-    activeRef.current = true;
-  };
-  const onTouchMove = (e) => {
-    if (!activeRef.current) return;
-    const dy = e.touches[0].clientY - startYRef.current;
-    if (dy > 0) setDragY(dy);
-  };
-  const onTouchEnd = () => {
-    if (dragY > 100) setActive(null);
-    setDragY(0);
-    activeRef.current = false;
-  };
-
   const openPayment = (p) => {
     setActive(p);
     setRejectReason('');
-    setDragY(0);
+    setShowRejectInput(false);
+    // If already approved/rejected, we show all steps done.
+    // If pending, we start at 0 (nothing checked).
+    setReviewProgress(p.status === 'pending' ? 0 : 3);
+  };
+
+  const closeDetail = () => {
+    setActive(null);
+    setRejectReason('');
+    setShowRejectInput(false);
   };
 
   const approveLinkedBoost = async (payment) => {
-    if (payment.purpose !== 'post_boost' && payment.purpose !== 'followers') {
-      return { ok: true };
-    }
+    if (payment.purpose !== 'post_boost' && payment.purpose !== 'followers') return { ok: true };
+    const { data: found } = await supabase.from('boosts').select('id, post_id, category, duration_days, delivery_days').eq('payment_id', payment.id).maybeSingle();
 
-    let boostRow = null;
-    const { data: found, error: findErr } = await supabase
-      .from('boosts')
-      .select('id, post_id, category, duration_days, delivery_days')
-      .eq('payment_id', payment.id)
-      .maybeSingle();
-    if (findErr) return { ok: false, msg: findErr.message };
-    boostRow = found;
-
-    if (!boostRow) {
+    if (!found) {
       const meta = payment.metadata || {};
       const postId = meta.post_id;
-      const category = meta.category || 'likes';
+      const category = meta.category || 'followers';
       const quantity = Number(meta.quantity || 0);
       const durationDays = Number(meta.duration_days || 5);
       const packageId = meta.package_id || `${category}_${quantity}`;
-
-      if (!postId || !quantity) {
-        return { ok: false, msg: 'Payment metadata missing post_id or quantity' };
-      }
-
-      const { data: created, error: createErr } = await supabase
-        .from('boosts')
-        .insert({
-          user_id: payment.user_id,
-          payment_id: payment.id,
-          post_id: postId,
-          category,
-          quantity,
-          package_id: packageId,
-          amount_ksh: payment.amount || 0,
-          duration_days: durationDays,
-          delivery_days: durationDays,
-          delivered: 0,
-          status: 'pending',
-        })
-        .select('id, post_id, category, duration_days')
-        .single();
+      if (!postId && category !== 'followers') return { ok: false, msg: 'Missing post_id' };
+      const { error: createErr } = await supabase.from('boosts').insert({
+        user_id: payment.user_id, payment_id: payment.id, post_id: postId || null,
+        category, quantity, package_id: packageId, amount_ksh: payment.amount || 0,
+        duration_days: durationDays, delivery_days: durationDays, delivered: 0, status: 'pending',
+      });
       if (createErr) return { ok: false, msg: createErr.message };
-
-      await supabase.from('posts').update({ boost_paid: true }).eq('id', postId);
-
-      return { ok: true, created: true, boostId: created.id };
+      if (postId) await supabase.from('posts').update({ boost_paid: true }).eq('id', postId);
+      return { ok: true };
     }
 
     const now = new Date();
-    const days = boostRow.duration_days || boostRow.delivery_days || 5;
+    const days = found.duration_days || found.delivery_days || 5;
     const expires = new Date(now.getTime() + days * 86400000);
-
-    const { error: boostErr } = await supabase
-      .from('boosts')
-      .update({
-        status: 'active',
-        started_at: now.toISOString(),
-        expires_at: expires.toISOString(),
-        updated_at: now.toISOString(),
-      })
-      .eq('id', boostRow.id);
+    const { error: boostErr } = await supabase.from('boosts').update({
+      status: 'active', started_at: now.toISOString(),
+      expires_at: expires.toISOString(), updated_at: now.toISOString(),
+    }).eq('id', found.id);
     if (boostErr) return { ok: false, msg: boostErr.message };
-
-    if (boostRow.post_id) {
-      const postUpdate = { boost_paid: true };
-      if (['post', 'bundle', 'likes', 'comments', 'views'].includes(boostRow.category)) {
-        postUpdate.boosted_until = expires.toISOString();
+    if (found.post_id) {
+      const upd = { boost_paid: true };
+      if (['post', 'bundle', 'likes', 'comments', 'views'].includes(found.category)) {
+        upd.boosted_until = expires.toISOString();
       }
-      await supabase.from('posts').update(postUpdate).eq('id', boostRow.post_id);
+      await supabase.from('posts').update(upd).eq('id', found.post_id);
     }
     return { ok: true };
   };
@@ -179,49 +140,34 @@ export default function Payments() {
   const approve = async () => {
     if (!active) return;
     setBusy(true);
-
-    const { error } = await supabase
-      .from('payments')
-      .update({ status: 'approved', reviewed_by: me.id, reviewed_at: new Date().toISOString() })
-      .eq('id', active.id);
+    const { error } = await supabase.from('payments').update({
+      status: 'approved', reviewed_by: me.id, reviewed_at: new Date().toISOString(),
+    }).eq('id', active.id);
     if (error) { setBusy(false); alert('Approve failed: ' + error.message); return; }
 
     const boostRes = await approveLinkedBoost(active);
-    if (!boostRes.ok) alert('Payment approved but boost update failed: ' + boostRes.msg);
+    if (!boostRes.ok) alert('Approved but boost update failed: ' + boostRes.msg);
+
+    if (active.purpose === 'verify') {
+      await supabase.from('profiles').update({ is_verified: true, verified_at: new Date().toISOString() }).eq('id', active.user_id);
+    }
 
     await supabase.from('admin_audit_logs').insert({
       admin_id: me.id, action: 'approve_payment', target_type: 'payment', target_id: active.id,
-      details: {
-        mpesa_code: active.mpesa_code,
-        user: active.profiles?.email,
-        amount: active.amount,
-        purpose: active.purpose,
-        category: active.metadata?.category,
-        quantity: active.metadata?.quantity,
-      },
+      details: { mpesa_code: active.mpesa_code, amount: active.amount, purpose: active.purpose, user_email: active.profiles?.email },
     });
 
     let title = 'Payment approved';
-    let body = '';
-    if (active.purpose === 'verify') {
-      title = 'You are now verified!';
-      body = 'Your account shows the blue checkmark.';
-    } else if (active.purpose === 'followers') {
-      title = `+${(active.metadata?.followers || 0).toLocaleString()} followers added!`;
-      body = 'Your follower boost is now delivering.';
-    } else if (active.purpose === 'post_boost') {
-      const cat = active.metadata?.category ? CATEGORY_LABELS[active.metadata.category] : 'Post';
-      title = `${cat} boost approved!`;
-      body = 'Your boost is now delivering.';
-    }
-
-    await supabase.from('notifications').insert({
-      user_id: active.user_id, type: 'like', title, body,
-      link: active.purpose === 'verify' ? `/profile/${active.user_id}` : '/get-boosted',
-    });
+    let body = 'Your payment was reviewed and approved.';
+    if (active.purpose === 'verify') { title = 'You are now verified!'; body = 'Your account shows the blue checkmark.'; }
+    else if (active.purpose === 'followers') { title = `+${(active.metadata?.followers || 0).toLocaleString()} followers added!`; body = 'Your follower boost is now delivering.'; }
+    else if (active.purpose === 'post_boost') { title = 'Boost approved!'; body = 'Your post boost is now delivering.'; }
+    await supabase.from('notifications').insert({ user_id: active.user_id, type: 'like', title, body, link: active.purpose === 'verify' ? `/profile/${active.user_id}` : '/get-boosted' });
 
     setBusy(false);
-    setActive(null);
+    setReviewProgress(3);
+    // Update the active payment object in state so the UI immediately shows APPROVED
+    setActive({ ...active, status: 'approved', reviewed_at: new Date().toISOString() });
     load();
   };
 
@@ -229,435 +175,359 @@ export default function Payments() {
     if (!active) return;
     setBusy(true);
     const reason = rejectReason.trim() || 'Payment could not be verified';
-
-    const { error } = await supabase
-      .from('payments')
-      .update({
-        status: 'rejected',
-        rejection_reason: reason,
-        reviewed_by: me.id,
-        reviewed_at: new Date().toISOString(),
-      })
-      .eq('id', active.id);
+    const { error } = await supabase.from('payments').update({
+      status: 'rejected', rejection_reason: reason, reviewed_by: me.id, reviewed_at: new Date().toISOString(),
+    }).eq('id', active.id);
     if (error) { setBusy(false); alert('Reject failed: ' + error.message); return; }
 
     if (active.purpose === 'post_boost' || active.purpose === 'followers') {
-      await supabase
-        .from('boosts')
-        .update({
-          status: 'rejected',
-          admin_note: reason,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('payment_id', active.id);
+      await supabase.from('boosts').update({ status: 'rejected', admin_note: reason, updated_at: new Date().toISOString() }).eq('payment_id', active.id);
     }
-
     await supabase.from('admin_audit_logs').insert({
       admin_id: me.id, action: 'reject_payment', target_type: 'payment', target_id: active.id,
       details: { reason, mpesa_code: active.mpesa_code, purpose: active.purpose },
     });
-
-    await supabase.from('notifications').insert({
-      user_id: active.user_id, type: 'like', title: 'Payment rejected',
-      body: reason, link: '/get-boosted',
-    });
+    await supabase.from('notifications').insert({ user_id: active.user_id, type: 'like', title: 'Payment rejected', body: reason, link: '/get-boosted' });
 
     setBusy(false);
-    setActive(null);
+    closeDetail();
     load();
   };
 
-  const revoke = async () => {
-    if (!active) return;
-    if (!confirm("Revoke this payment's reward?")) return;
-    setBusy(true);
+  const filtered = activeTab === 'all' ? items : items.filter(p => p.status === activeTab);
+  const counts = {
+    pending: items.filter(p => p.status === 'pending').length,
+    approved: items.filter(p => p.status === 'approved').length,
+    rejected: items.filter(p => p.status === 'rejected').length,
+    all: items.length,
+  };
 
-    await supabase
-      .from('payments')
-      .update({ status: 'rejected', rejection_reason: 'Revoked by admin' })
-      .eq('id', active.id);
+  if (active) {
+    const isApproved = active.status === 'approved';
+    const isRejected = active.status === 'rejected';
+    const isPending = active.status === 'pending';
 
-    if (active.purpose === 'post_boost' || active.purpose === 'followers') {
-      await supabase
-        .from('boosts')
-        .update({
-          status: 'rejected',
-          admin_note: 'Revoked by admin',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('payment_id', active.id);
+    const steps = [];
+
+    // Step 1: Payment Received
+    steps.push({
+      label: 'Payment Received',
+      description: 'M-Pesa transaction confirmed',
+      detail: active.mpesa_code ? `Code: ${active.mpesa_code} · KSh ${active.amount}` : `KSh ${active.amount}`,
+      state: reviewProgress >= 1 || isApproved || isRejected ? 'done' : 'current',
+      onAction: reviewProgress === 0 ? () => setReviewProgress(1) : undefined,
+    });
+
+    // Step 2: User Requested
+    steps.push({
+      label: 'User Requested',
+      description: `Requested ${purposeLabel(active.purpose, active.metadata)}`,
+      detail: active.created_at ? formatDate(active.created_at) : '',
+      state: reviewProgress >= 2 || isApproved || isRejected ? 'done' : reviewProgress === 1 ? 'current' : 'pending',
+      onAction: reviewProgress === 1 ? () => setReviewProgress(2) : undefined,
+    });
+
+    // Step 3: Admin Review
+    steps.push({
+      label: 'Admin Review',
+      description: isApproved
+        ? `Approved by admin${active.reviewed_at ? ` · ${formatDate(active.reviewed_at)}` : ''}`
+        : isRejected
+          ? `Rejected${active.rejection_reason ? ` · ${active.rejection_reason}` : ''}`
+          : 'Waiting for your approval',
+      state: isApproved || isRejected ? 'done' : reviewProgress === 2 ? 'current' : 'pending',
+    });
+
+    // Step 4+: Outcome
+    if (active.purpose === 'verify') {
+      steps.push({
+        label: 'Identity Verified',
+        description: isApproved ? 'Blue checkmark applied to profile' : 'Blue checkmark will be applied',
+        state: isApproved ? 'done' : 'pending',
+      });
+    } else if (active.purpose === 'post_boost') {
+      steps.push({
+        label: 'Boost Activated',
+        description: isApproved ? 'Delivery started' : 'Boost will start delivery',
+        state: isApproved ? 'done' : 'pending',
+      });
+      steps.push({
+        label: 'Delivery in Progress',
+        description: isApproved ? 'Real-time delivery tracking' : 'Delivery not started',
+        state: isApproved ? 'current' : 'pending',
+      });
+    } else {
+      steps.push({
+        label: 'Followers Delivering',
+        description: isApproved ? 'Followers being added' : 'Will begin after approval',
+        state: isApproved ? 'done' : 'pending',
+      });
+      steps.push({
+        label: 'Delivery Complete',
+        description: isApproved ? 'Package fully delivered' : 'Pending',
+        state: 'pending',
+      });
     }
 
-    await supabase.from('admin_audit_logs').insert({
-      admin_id: me.id, action: 'revoke_payment', target_type: 'payment', target_id: active.id,
+    // Step 5: Notified
+    steps.push({
+      label: 'User Notified',
+      description: isApproved ? 'Notification sent to student' : isRejected ? 'Rejection notice sent' : 'Notification will be sent',
+      state: isApproved || isRejected ? 'done' : 'pending',
     });
 
-    setBusy(false);
-    setActive(null);
-    load();
-  };
+    return (
+      <div style={{ background: '#000', minHeight: '100vh', paddingBottom: 100 }}>
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 10, background: '#000',
+          padding: '16px 20px', borderBottom: '1px solid #1f1f1f',
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <button onClick={closeDetail} style={{ background: 'transparent', border: 'none', color: '#fff', padding: 4, cursor: 'pointer' }}>
+            <ChevronRightIcon width={24} height={24} style={{ transform: 'rotate(180deg)' }} />
+          </button>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: '#fff', fontSize: 16, fontWeight: 800 }}>Payment Flow</div>
+            <div style={{ color: '#6d7382', fontSize: 12, marginTop: 2 }}>
+              {active.profiles?.full_name || 'Unknown'} · {purposeLabel(active.purpose, active.metadata)}
+            </div>
+          </div>
+        </div>
 
-  const counts = {};
-  STATUS_ROWS.forEach((r) => {
-    counts[r.key] = r.key === 'all'
-      ? items.length
-      : items.filter((p) => p.status === r.key).length;
-  });
+        <div style={{ padding: 20, borderBottom: '1px solid #1f1f1f' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 56, height: 56, borderRadius: 28, overflow: 'hidden', background: '#1a1a1a', flexShrink: 0 }}>
+              {active.profiles?.avatar_url ? (
+                <img src={active.profiles.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <UserIcon width={24} height={24} color="#6d7382" />
+                </div>
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: '#fff', fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {active.profiles?.full_name || 'Unknown'}
+              </div>
+              <div style={{ color: '#6d7382', fontSize: 12, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {active.profiles?.email}
+              </div>
+            </div>
+            <div style={{
+              padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 800, textTransform: 'uppercase',
+              color: STATUS_TABS.find(t => t.key === active.status)?.color || '#fff',
+              background: `${STATUS_TABS.find(t => t.key === active.status)?.color || '#6d7382'}15`,
+            }}>
+              {active.status}
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16, paddingTop: 16, borderTop: '1px solid #1f1f1f' }}>
+            <div>
+              <div style={{ color: '#6d7382', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Amount</div>
+              <div style={{ color: '#fff', fontSize: 20, fontWeight: 900, marginTop: 4 }}>KSh {active.amount}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: '#6d7382', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Purpose</div>
+              <div style={{ color: '#fff', fontSize: 14, fontWeight: 700, marginTop: 4 }}>{purposeLabel(active.purpose, active.metadata)}</div>
+            </div>
+          </div>
+        </div>
 
-  const rowItems = rowOpen === 'all'
-    ? items
-    : rowOpen
-      ? items.filter((p) => p.status === rowOpen)
-      : [];
+        <div style={{ padding: 20 }}>
+          <VerticalStepper
+            steps={steps}
+            action={
+              isPending && reviewProgress === 2 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button
+                    onClick={approve}
+                    disabled={busy}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                      background: '#22c55e', color: '#fff', border: 'none',
+                      padding: '16px', borderRadius: 12, fontSize: 15, fontWeight: 800,
+                      cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1,
+                    }}
+                  >
+                    <CheckCircleIcon width={20} height={20} />
+                    {busy ? 'Approving…' : 'Approve Payment'}
+                  </button>
+
+                  {!showRejectInput ? (
+                    <button
+                      onClick={() => setShowRejectInput(true)}
+                      style={{
+                        background: 'transparent', color: '#ef4444',
+                        border: '1px solid #333', padding: '14px',
+                        borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                      }}
+                    >
+                      Reject Payment
+                    </button>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 14, background: '#0a0a0a', border: '1px solid #1f1f1f', borderRadius: 12 }}>
+                      <div style={{ color: '#6d7382', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>
+                        Reason for rejection
+                      </div>
+                      <textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="e.g. M-Pesa code not found, invalid amount…"
+                        maxLength={300}
+                        style={{
+                          width: '100%', minHeight: 80, background: '#111',
+                          border: '1px solid #333', borderRadius: 10, padding: 12,
+                          color: '#fff', fontSize: 14, outline: 'none',
+                          resize: 'vertical', fontFamily: 'inherit',
+                        }}
+                      />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => setShowRejectInput(false)}
+                          style={{ flex: 1, padding: 12, borderRadius: 10, background: 'transparent', border: '1px solid #333', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={reject}
+                          disabled={busy}
+                          style={{ flex: 1, padding: 12, borderRadius: 10, background: '#ef4444', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1 }}
+                        >
+                          {busy ? 'Rejecting…' : 'Confirm Reject'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : isRejected ? (
+                <button
+                  onClick={approve}
+                  disabled={busy}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                    background: '#22c55e', color: '#fff', border: 'none',
+                    padding: '14px', borderRadius: 12, fontSize: 14, fontWeight: 800,
+                    cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1,
+                  }}
+                >
+                  <CheckCircleIcon width={18} height={18} />
+                  Re-approve Payment
+                </button>
+              ) : null
+            }
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ paddingBottom: 100 }}>
-      {/* HERO */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        padding: '32px 24px 28px', gap: 12,
-      }}>
-        <CreditCardIcon width={56} height={56} color="#22c55e" />
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', letterSpacing: 0.5 }}>
-          Payments
+    <div style={{ background: '#000', minHeight: '100vh', paddingBottom: 100 }}>
+      <div style={{ padding: '24px 20px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <CreditCardIcon width={28} height={28} color="#22c55e" />
+          <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: 0 }}>Payments</h1>
         </div>
-        <div style={{
-          fontSize: 13, color: 'var(--text-3)',
-          textAlign: 'center', maxWidth: 320, lineHeight: 1.5,
-        }}>
-          Review M-Pesa submissions, verify users, and manage boosts.
-        </div>
+        <p style={{ color: '#6d7382', fontSize: 13, marginTop: 6, marginBottom: 0 }}>
+          Review M-Pesa payments and step through each request
+        </p>
       </div>
 
       {errMsg && (
-        <div style={{ margin: '0 16px 12px', background: '#7f1d1d', color: '#fff', padding: 10, borderRadius: 8, fontSize: 13 }}>
+        <div style={{ margin: '0 20px 12px', background: '#7f1d1d', color: '#fff', padding: 12, borderRadius: 10, fontSize: 13 }}>
           {errMsg}
         </div>
       )}
 
-      {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: '50%',
-            border: '3px solid rgba(239,68,68,0.25)',
-            borderTopColor: '#ef4444',
-            animation: 'spin 0.8s linear infinite',
-          }} />
-        </div>
-      ) : (
-        <div style={{ borderTop: '1px solid var(--border)' }}>
-          {STATUS_ROWS.map((r) => (
+      <div style={{ display: 'flex', gap: 8, padding: '0 20px 16px', overflowX: 'auto' }}>
+        {STATUS_TABS.map(tab => {
+          const activeTabState = activeTab === tab.key;
+          return (
             <button
-              key={r.key}
-              onClick={() => setRowOpen(r.key)}
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 16,
-                width: '100%', padding: '20px 16px',
-                background: 'transparent', border: 'none',
-                borderBottom: '1px solid var(--border)',
-                color: '#fff', cursor: 'pointer', textAlign: 'left',
+                flexShrink: 0,
+                background: activeTabState ? tab.color : '#0f0f0f',
+                border: activeTabState ? `1px solid ${tab.color}` : '1px solid #1f1f1f',
+                color: activeTabState ? '#000' : '#fff',
+                fontSize: 13, fontWeight: 800, padding: '10px 18px',
+                borderRadius: 20, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8,
               }}
             >
-              <span style={{ width: 10, height: 10, borderRadius: 5, background: r.color, flexShrink: 0 }} />
-              <span style={{ flex: 1, fontSize: 16, fontWeight: 500 }}>{r.label}</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: counts[r.key] > 0 ? '#fff' : 'var(--text-3)' }}>
-                {counts[r.key]}
-              </span>
-              <span style={{ display: 'inline-flex', color: 'var(--text-3)', opacity: 0.5 }}>
-                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
+              {tab.label}
+              <span style={{
+                background: activeTabState ? 'rgba(0,0,0,0.2)' : '#1a1a1a',
+                color: activeTabState ? '#000' : (counts[tab.key] > 0 ? '#fff' : '#6d7382'),
+                fontSize: 11, fontWeight: 900, padding: '2px 8px', borderRadius: 10,
+              }}>
+                {counts[tab.key]}
               </span>
             </button>
-          ))}
+          );
+        })}
+      </div>
+
+      {loading ? (
+        <div style={{ padding: 60, display: 'flex', justifyContent: 'center' }}>
+          <div style={{ width: 32, height: 32, border: '3px solid #1f1f1f', borderTopColor: '#ef4444', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
         </div>
-      )}
-
-      {/* ROW DRAWER */}
-      {rowOpen && (
-        <>
-          <div
-            onClick={() => setRowOpen(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.8)', zIndex: 200 }}
-          />
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: 'fixed', left: 0, right: 0, bottom: 0,
-              maxHeight: '90vh', background: '#0a0a0a',
-              borderTopLeftRadius: 24, borderTopRightRadius: 24,
-              zIndex: 210, display: 'flex', flexDirection: 'column',
-              overflow: 'hidden', animation: 'drawer-slide-up 250ms ease-out',
-            }}
-          >
-            <div style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              padding: '12px 0 16px',
-            }}>
-              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.3)' }} />
-            </div>
-
-            <div style={{
-              padding: '8px 20px 16px',
-              borderBottom: '1px solid var(--border)',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <span style={{
-                width: 10, height: 10, borderRadius: 5,
-                background: STATUS_ROWS.find((r) => r.key === rowOpen)?.color || '#fff',
-              }} />
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>
-                  {STATUS_ROWS.find((r) => r.key === rowOpen)?.label}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>
-                  {rowItems.length} {rowItems.length === 1 ? 'payment' : 'payments'}
-                </div>
-              </div>
-              <div style={{ flex: 1 }} />
-              <button
-                onClick={() => setRowOpen(null)}
-                style={{ background: 'transparent', border: 'none', color: '#fff', padding: 8, cursor: 'pointer' }}
-              >
-                <XIcon width={24} height={24} />
-              </button>
-            </div>
-
-            <div style={{ overflowY: 'auto', flex: 1, paddingBottom: 20 }}>
-              {rowItems.length === 0 && (
-                <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-                  Nothing here.
-                </div>
-              )}
-              {rowItems.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => openPayment(p)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 14,
-                    width: '100%', padding: '16px',
-                    background: 'transparent', border: 'none',
-                    borderBottom: '1px solid var(--border)',
-                    color: '#fff', cursor: 'pointer', textAlign: 'left',
-                  }}
-                >
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 22,
-                    background: 'var(--surface-2)', overflow: 'hidden',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
-                  }}>
-                    {p.profiles?.avatar_url ? (
-                      <img src={p.profiles.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <UserIcon width={20} height={20} />
-                    )}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 500, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {p.profiles?.full_name || 'Unknown'}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>
-                      {purposeLabel(p.purpose, p.metadata)} · KSh {p.amount} · {timeAgo(p.created_at)}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ padding: 60, textAlign: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: 28, background: '#0f0f0f', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <CreditCardIcon width={24} height={24} color="#333" />
           </div>
-        </>
-      )}
-
-      {/* ACTION DRAWER */}
-      {active && (
-        <>
-          <div
-            onClick={() => setActive(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.8)', zIndex: 300 }}
-          />
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: 'fixed', left: 0, right: 0, bottom: 0,
-              maxHeight: '92vh', background: '#0a0a0a',
-              borderTopLeftRadius: 24, borderTopRightRadius: 24,
-              zIndex: 310, display: 'flex', flexDirection: 'column',
-              overflow: 'hidden', animation: 'drawer-slide-up 250ms ease-out',
-              transform: `translateY(${dragY}px)`,
-              transition: dragY === 0 ? 'transform 200ms ease-out' : 'none',
-            }}
-          >
-            <div
-              onTouchStart={onTouchStart}
-              onTouchMove={onTouchMove}
-              onTouchEnd={onTouchEnd}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: '12px 0 16px', flexShrink: 0, touchAction: 'none', cursor: 'grab',
-              }}
-            >
-              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.3)' }} />
-            </div>
-
-            <div style={{ overflowY: 'auto', flex: 1, paddingBottom: 28 }}>
-              <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: '0 20px 20px',
-                borderBottom: '1px solid var(--border)',
-                position: 'relative',
-              }}>
-                <div style={{
-                  width: 72, height: 72, borderRadius: 36,
-                  background: 'var(--surface-2)', overflow: 'hidden',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {active.profiles?.avatar_url ? (
-                    <img src={active.profiles.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <div style={{ color: '#6d7382', fontSize: 14, fontWeight: 600 }}>
+            No {activeTab === 'all' ? 'payments' : activeTab + ' payments'} yet
+          </div>
+        </div>
+      ) : (
+        <div>
+          {filtered.map(p => {
+            const statusMeta = STATUS_TABS.find(t => t.key === p.status);
+            return (
+              <button
+                key={p.id}
+                onClick={() => openPayment(p)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  width: '100%', padding: '14px 20px',
+                  background: 'transparent', border: 'none',
+                  borderTop: '1px solid #0f0f0f',
+                  color: '#fff', cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                <div style={{ width: 44, height: 44, borderRadius: 22, overflow: 'hidden', background: '#1a1a1a', flexShrink: 0 }}>
+                  {p.profiles?.avatar_url ? (
+                    <img src={p.profiles.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
-                    <UserIcon width={32} height={32} />
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <UserIcon width={20} height={20} color="#6d7382" />
+                    </div>
                   )}
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginTop: 12 }}>
-                  {active.profiles?.full_name || 'Unknown'}
-                </div>
-                {active.profiles?.email && (
-                  <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 3 }}>
-                    {active.profiles.email}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: '#fff', fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {p.profiles?.full_name || 'Unknown'}
                   </div>
-                )}
-                <div style={{
-                  fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                  color: STATUS_ROWS.find((r) => r.key === active.status)?.color || '#fff',
-                  marginTop: 8, letterSpacing: 0.6,
-                }}>
-                  {active.status}
-                </div>
-                <button
-                  onClick={() => setActive(null)}
-                  style={{
-                    position: 'absolute', top: 0, right: 12,
-                    background: 'transparent', border: 'none',
-                    color: '#fff', padding: 8, cursor: 'pointer',
-                  }}
-                >
-                  <XIcon width={24} height={24} />
-                </button>
-              </div>
-
-              <div style={{ padding: '20px', borderBottom: '1px solid var(--border)' }}>
-                <div style={{
-                  fontSize: 12, fontWeight: 700, color: 'var(--text-3)',
-                  textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 14,
-                }}>
-                  Payment details
-                </div>
-                <DetailRow label="Purpose" value={purposeLabel(active.purpose, active.metadata)} />
-                <DetailRow label="Amount" value={`KSh ${active.amount}`} />
-                <DetailRow label="M-Pesa code" value={active.mpesa_code || '—'} />
-                <DetailRow label="Phone" value={active.phone || '—'} />
-                <DetailRow label="Submitted" value={timeAgo(active.created_at)} />
-                {active.rejection_reason && (
-                  <DetailRow label="Reason" value={active.rejection_reason} />
-                )}
-              </div>
-
-              {active.status === 'pending' && (
-                <div style={{ padding: '20px', borderBottom: '1px solid var(--border)' }}>
-                  <div style={{
-                    fontSize: 12, fontWeight: 700, color: 'var(--text-3)',
-                    textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12,
-                  }}>
-                    Note to user (on rejection)
+                  <div style={{ color: '#6d7382', fontSize: 12, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {purposeLabel(p.purpose, p.metadata)} · KSh {p.amount}
                   </div>
-                  <textarea
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="Optional — e.g. code not found"
-                    maxLength={500}
-                    style={{
-                      width: '100%', minHeight: 80,
-                      background: '#141414', border: 'none',
-                      borderRadius: 12, padding: 14,
-                      color: '#fff', fontSize: 14, lineHeight: 1.5,
-                      outline: 'none', fontFamily: 'inherit',
-                      resize: 'vertical',
-                    }}
-                  />
                 </div>
-              )}
-
-              <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {isAdmin && active.status === 'pending' && (
-                  <>
-                    <button
-                      onClick={approve}
-                      disabled={busy}
-                      style={actionBtn('transparent', '#22c55e', '1.5px solid #22c55e')}
-                    >
-                      <CheckCircleIcon width={20} height={20} color="#22c55e" />
-                      Approve
-                    </button>
-                    <button
-                      onClick={reject}
-                      disabled={busy}
-                      style={actionBtn('#1f1f1f', '#f97316')}
-                    >
-                      <XCircleIcon width={20} height={20} color="#f97316" />
-                      Reject
-                    </button>
-                  </>
-                )}
-                {isAdmin && active.status === 'approved' && (
-                  <button
-                    onClick={revoke}
-                    disabled={busy}
-                    style={actionBtn('transparent', '#ef4444', '1px solid #ef4444')}
-                  >
-                    <BanIcon width={18} height={18} color="#ef4444" />
-                    Revoke reward
-                  </button>
-                )}
-                {isAdmin && active.status === 'rejected' && (
-                  <button
-                    onClick={approve}
-                    disabled={busy}
-                    style={actionBtn('transparent', '#22c55e', '1.5px solid #22c55e')}
-                  >
-                    <CheckCircleIcon width={20} height={20} color="#22c55e" />
-                    Re-approve
-                  </button>
-                )}
-                {active.status !== 'pending' && (
-                  <div style={{
-                    padding: 14, background: '#141414',
-                    borderRadius: 12, fontSize: 13,
-                    color: 'var(--text-3)', textAlign: 'center',
-                  }}>
-                    Final status: {active.status}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: statusMeta?.color || '#6d7382', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: 3, background: statusMeta?.color || '#6d7382' }} />
+                    {statusMeta?.label || p.status}
                   </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
+                  <div style={{ color: '#6d7382', fontSize: 11 }}>{timeAgo(p.created_at)}</div>
+                </div>
+                <ChevronRightIcon width={16} height={16} color="#333" />
+              </button>
+            );
+          })}
+        </div>
       )}
     </div>
   );
 }
-
-function DetailRow({ label, value }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', gap: 12 }}>
-      <span style={{ fontSize: 13, color: 'var(--text-3)' }}>{label}</span>
-      <span style={{ fontSize: 13, color: '#fff', fontWeight: 500, textAlign: 'right' }}>{value}</span>
-    </div>
-  );
-}
-
-const actionBtn = (bg, color, border) => ({
-  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-  padding: '16px', background: bg, color,
-  border: border || 'none', borderRadius: 14,
-  fontSize: 15, fontWeight: 600, cursor: 'pointer', width: '100%',
-});

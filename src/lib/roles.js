@@ -51,6 +51,7 @@ export const PAGE_ACCESS = {
 
   // Super admin only
   settings: 3,
+  pricing: 3,
   payments: 3,
   admins: 3,
   'admin-codes': 3,

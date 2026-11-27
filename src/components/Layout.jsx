@@ -38,8 +38,9 @@ const SECTIONS = [
     { to: '/groups', label: 'Groups', icon: BuildingIcon, role: 'admin' },
   ]},
   { title: 'System', links: [
-    { to: '/boosts', label: 'Boosts', icon: RocketIcon, role: 'admin' },
+    
     { to: '/payments', label: 'Payments', icon: CreditCardIcon, role: 'super_admin' },
+    { to: '/pricing', label: 'Pricing & Peaks', icon: CreditCardIcon, role: 'super_admin' },
     { to: '/admin-codes', label: 'Access Codes', icon: ShieldCheckIcon, role: 'super_admin' },
     { to: '/otp-manager', label: 'OTP Manager', icon: ShieldCheckIcon, role: 'super_admin' },
     { to: '/settings', label: 'Settings', icon: ShieldIcon, role: 'super_admin' },

@@ -31,6 +31,7 @@ import AdminCodes from './pages/AdminCodes.jsx';
 import Boosts from './pages/Boosts.jsx';
 import OtpManager from './pages/OtpManager.jsx';
 import Visitors from './pages/Visitors.jsx';
+import Pricing from './pages/Pricing.jsx';
 import Banned from './pages/Banned.jsx';
 import NotAuthorized from './pages/NotAuthorized.jsx';
 import MessagesList from './pages/MessagesList.jsx';
@@ -86,6 +87,7 @@ function AdminRoutes() {
 
         <Route path="settings" element={<RoleGuard routePath="settings"><Settings /></RoleGuard>} />
         <Route path="payments" element={<RoleGuard routePath="payments"><Payments /></RoleGuard>} />
+        <Route path="pricing" element={<RoleGuard routePath="pricing"><Pricing /></RoleGuard>} />
         <Route path="admins" element={<RoleGuard routePath="admins"><Admins /></RoleGuard>} />
         <Route path="admin-codes" element={<RoleGuard routePath="admin-codes"><AdminCodes /></RoleGuard>} />
         <Route path="otp-manager" element={<RoleGuard routePath="otp-manager"><OtpManager /></RoleGuard>} />
