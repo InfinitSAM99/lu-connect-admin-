@@ -12,7 +12,6 @@ const ROLE_COLORS = {
   student: '#6d7382',
 };
 
-// Official Google Logo SVG
 const GoogleIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24">
     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -30,11 +29,11 @@ export default function Admins() {
   const [addOpen, setAddOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
-  
-  const [addMode, setAddMode] = useState('select'); 
+
+  const [addMode, setAddMode] = useState('select');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [newRole, setNewRole] = useState('moderator');
-  
+
   const [pendingRole, setPendingRole] = useState(null);
   const [showRoleOptions, setShowRoleOptions] = useState(false);
 
@@ -61,14 +60,14 @@ export default function Admins() {
 
   const openUserDrawer = (user) => {
     setActiveUser(user);
-    setPendingRole(null); 
+    setPendingRole(null);
     setShowRoleOptions(false);
   };
 
   const saveRoleChange = async (roleName) => {
     if (!activeUser) return;
     setBusy(true);
-    
+
     try {
       const { data: role } = await supabase.from('roles').select('id, name, level').eq('name', roleName).single();
       if (!role) throw new Error("Role not found");
@@ -78,12 +77,12 @@ export default function Admins() {
 
       setMsg(`Role updated to ${roleName.replace(/_/g, ' ')}`);
       setTimeout(() => setMsg(''), 2500);
-      
+
       await supabase.from('admin_audit_logs').insert({
         admin_id: me.id, action: 'change_role', target_type: 'profile', target_id: activeUser.id,
         details: { new_role: roleName },
       });
-      
+
       loadUsers();
       setActiveUser(null);
       setPendingRole(null);
@@ -97,25 +96,59 @@ export default function Admins() {
 
   const banAdmin = async () => {
     if (!activeUser) return;
-    if (!window.confirm(`Are you sure you want to ban ${activeUser.full_name} from the Admin App? They will still be able to use the student app.`)) return;
-    
+    if (!window.confirm(`Are you sure you want to ban ${activeUser.full_name} from BOTH the Admin App and Student App?`)) return;
+
     setBusy(true);
     try {
-      const { error } = await supabase.from('profiles').update({ is_admin_banned: true }).eq('id', activeUser.id);
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_admin_banned: true, is_suspended: true })
+        .eq('id', activeUser.id);
+        
       if (error) throw error;
 
-      setMsg(`${activeUser.full_name} has been banned from Admin App.`);
+      setMsg(`${activeUser.full_name} has been banned from both apps.`);
       setTimeout(() => setMsg(''), 3000);
-      
+
       await supabase.from('admin_audit_logs').insert({
         admin_id: me.id, action: 'ban_admin', target_type: 'profile', target_id: activeUser.id,
-        details: { banned: true },
+        details: { banned_admin: true, banned_student: true },
       });
 
       loadUsers();
       setActiveUser(null);
     } catch (err) {
       alert("Failed to ban: " + err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unbanAdmin = async () => {
+    if (!activeUser) return;
+    if (!window.confirm(`Are you sure you want to unban ${activeUser.full_name}? They will regain access to both apps.`)) return;
+
+    setBusy(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_admin_banned: false, is_suspended: false })
+        .eq('id', activeUser.id);
+        
+      if (error) throw error;
+
+      setMsg(`${activeUser.full_name} has been unbanned.`);
+      setTimeout(() => setMsg(''), 3000);
+
+      await supabase.from('admin_audit_logs').insert({
+        admin_id: me.id, action: 'unban_admin', target_type: 'profile', target_id: activeUser.id,
+        details: { unbanned: true },
+      });
+
+      loadUsers();
+      setActiveUser(null);
+    } catch (err) {
+      alert("Failed to unban: " + err.message);
     } finally {
       setBusy(false);
     }
@@ -130,7 +163,7 @@ export default function Admins() {
   const promoteStudent = async () => {
     if (!selectedStudent) return;
     setBusy(true);
-    
+
     try {
       const { data: role } = await supabase.from('roles').select('id, name, level').eq('name', newRole).single();
       if (!role) throw new Error("Role not found");
@@ -140,12 +173,12 @@ export default function Admins() {
 
       setMsg(`${selectedStudent.full_name} is now a ${newRole}`);
       setTimeout(() => setMsg(''), 3000);
-      
+
       setSelectedStudent(null);
       setAddOpen(false);
       setAddMode('select');
       loadUsers();
-      
+
     } catch (err) {
       alert("Failed to promote user: " + err.message);
     } finally {
@@ -255,7 +288,7 @@ export default function Admins() {
         </>
       )}
 
-      {/* PREMIUM USER DETAIL DRAWER (TALLER) */}
+      {/* PREMIUM USER DETAIL DRAWER */}
       {activeUser && (
         <>
           <div onClick={() => setActiveUser(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100 }} />
@@ -275,12 +308,12 @@ export default function Admins() {
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 40px', display: 'flex', flexDirection: 'column' }}>
-              
+
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
                 <GoogleIcon />
                 <div style={{ color: '#fff', fontSize: 16 }}>{activeUser.email}</div>
               </div>
-              
+
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 40 }}>
                 <ClipboardIcon width={24} height={24} style={{ color: '#6d7382' }} />
                 <div style={{ color: '#fff', fontSize: 15 }}>{activeUser.id}</div>
@@ -290,8 +323,8 @@ export default function Admins() {
                 <div style={{ textAlign: 'center', padding: 20, color: '#ef4444', fontWeight: 700, fontSize: 16 }}>Super Admin Account (Protected)</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
-                  
-                  {/* CURRENT ROLE BUTTON (DISABLED) */}
+
+                  {/* CURRENT ROLE BUTTON */}
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#6d7382', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Current Role</div>
                     <button disabled style={{ width: '100%', background: '#111', border: '1px solid #333', padding: '16px', borderRadius: 12, color: '#6d7382', fontSize: 16, fontWeight: 600, textAlign: 'left', textTransform: 'capitalize' }}>
@@ -313,7 +346,7 @@ export default function Admins() {
                          <div style={{ fontSize: 12, fontWeight: 700, color: '#6d7382', textTransform: 'uppercase', letterSpacing: 1 }}>Select New Role</div>
                          <button onClick={() => setShowRoleOptions(false)} style={{ background: 'none', border: 'none', color: '#6d7382', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
                       </div>
-                      
+
                       {['moderator', 'admin'].map((role) => {
                         const isCurrent = (activeUser.roles?.name || 'student') === role;
                         return (
@@ -334,7 +367,7 @@ export default function Admins() {
                           </button>
                         );
                       })}
-                      
+
                       {pendingRole && (
                         <button
                           onClick={() => saveRoleChange(pendingRole)}
@@ -355,21 +388,24 @@ export default function Admins() {
                   >
                     Demote to Student
                   </button>
-                  
-                  {/* BAN FROM ADMIN APP BUTTON */}
-                  {!activeUser.is_admin_banned && (
+
+                  {/* BAN / UNBAN BUTTON */}
+                  {!activeUser.is_admin_banned ? (
                     <button
                       onClick={banAdmin}
                       disabled={busy}
                       style={{ width: '100%', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '16px', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
                     >
-                      Ban from Admin App
+                      Ban from Admin & Student App
                     </button>
-                  )}
-                  {activeUser.is_admin_banned && (
-                    <div style={{ textAlign: 'center', color: '#ef4444', fontWeight: 700, fontSize: 14, padding: 16 }}>
-                      Banned from Admin App
-                    </div>
+                  ) : (
+                    <button
+                      onClick={unbanAdmin}
+                      disabled={busy}
+                      style={{ width: '100%', background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)', padding: '16px', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Unban User
+                    </button>
                   )}
 
                 </div>
