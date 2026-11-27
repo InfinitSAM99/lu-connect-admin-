@@ -207,7 +207,7 @@ export default function Dashboard() {
   );
 
   return (
-    <div style={{ backgroundColor: '#000', minHeight: '100%', maxWidth: 800, margin: '0 auto', padding: '0 16px', paddingBottom: 100, paddingBottom: 100 }}>
+    <div style={{ backgroundColor: '#000', minHeight: '100%', maxWidth: 800, margin: '0 auto', padding: '0 16px', paddingBottom: 100 }}>
       <Sidebar />
       
       {/* HEADER */}
