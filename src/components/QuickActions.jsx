@@ -1,166 +1,97 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  XIcon, 
-  UserIcon, 
-  AlertTriangleIcon, 
-  FileTextIcon, 
-  CreditCardIcon, 
-  UsersIcon, 
-  MegaphoneIcon,
-  ClipboardIcon
+  XIcon, AlertTriangleIcon, FileTextIcon, CreditCardIcon, 
+  UsersIcon, MegaphoneIcon, ClipboardIcon, ShieldCheckIcon, ShieldIcon, MessageIcon, LockIcon, RocketIcon
 } from './Icons.jsx';
 
 export default function QuickActions() {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Real actions mapped to your admin routes
+  // Exact icons and order from your original screenshot
   const actions = [
-    { label: 'Approvals', icon: <ClipboardIcon width={28} height={28} />, path: '/pending-approvals', badge: 12 },
-    { label: 'Appeals', icon: <AlertTriangleIcon width={28} height={28} />, path: '/appeals' },
-    { label: 'Payments', icon: <CreditCardIcon width={28} height={28} />, path: '/payments' },
-    { label: 'Reports', icon: <FileTextIcon width={28} height={28} />, path: '/reports' },
-    { label: 'Students', icon: <UsersIcon width={28} height={28} />, path: '/students' },
-    { label: 'Announce', icon: <MegaphoneIcon width={28} height={28} />, path: '/announcements' },
+    { icon: <ShieldIcon width={22} height={22} />, path: '/security-threats' },
+    { icon: <AlertTriangleIcon width={22} height={22} />, path: '/reports' },
+    { icon: <CreditCardIcon width={22} height={22} />, path: '/payments' },
+    { icon: <FileTextIcon width={22} height={22} />, path: '/posts' },
+    { icon: <MessageIcon width={22} height={22} />, path: '/help-desk' },
+    { icon: <LockIcon width={22} height={22} />, path: '/admins' },
+    { icon: <AlertTriangleIcon width={22} height={22} />, path: '/appeals' },
+    { icon: <RocketIcon width={22} height={22} />, path: '/boosts' },
   ];
 
   return (
     <>
-      {/* FLOATING RED BUTTON */}
+      {/* HEADER BELL BUTTON */}
       <button
         onClick={() => setIsOpen(true)}
         style={{
-          position: 'fixed',
-          bottom: 90, // Just above your bottom nav
-          right: 24,
-          width: 60,
-          height: 60,
-          borderRadius: 30,
-          background: '#ef4444', // Your brand red
-          color: '#fff',
-          border: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 8px 32px rgba(239, 68, 68, 0.4)',
-          zIndex: 1000,
-          cursor: 'pointer',
-          animation: 'pulse-glow 2s infinite'
+          background: 'transparent', color: '#ef4444', border: 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', padding: 0, marginRight: 12
         }}
       >
-        {/* Using AlertTriangle as a notification bell substitute since BellIcon isn't in your list */}
-        <AlertTriangleIcon width={28} height={28} />
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
       </button>
 
-      {/* SLIDE DOWN MENU OVERLAY */}
+      {/* THE EXACT PILL-SHAPED FLOATING SIDEBAR */}
       {isOpen && (
-        <div
-          onClick={() => setIsOpen(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 1000,
-            animation: 'fade-in 200ms ease-out'
-          }}
-        >
-          {/* SLIDING PANEL */}
+        <>
+          <div onClick={() => setIsOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(2px)', zIndex: 1000 }} />
           <div
-            onClick={(e) => e.stopPropagation()}
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              background: '#0a0a0a',
-              borderBottomLeftRadius: 28,
-              borderBottomRightRadius: 28,
-              padding: '24px 20px 32px',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
-              animation: 'slide-down 300ms cubic-bezier(0.16, 1, 0.3, 1)',
-              display: 'flex',
+              position: 'fixed', 
+              top: '50%', 
+              left: 20, 
+              transform: 'translateY(-50%)',
+              background: '#1a1a1a',
+              borderRadius: 40,
+              padding: '24px 10px',
+              display: 'flex', 
               flexDirection: 'column',
-              gap: 20
+              alignItems: 'center', 
+              gap: 24,
+              boxShadow: '0 10px 40px rgba(0,0,0,0.8)',
+              border: '1px solid #333',
+              zIndex: 1001,
+              animation: 'fade-in-scale 200ms ease-out'
             }}
           >
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', letterSpacing: 0.5 }}>Quick Actions</div>
-              <button 
-                onClick={() => setIsOpen(false)}
-                style={{ background: '#1f1f1f', border: 'none', borderRadius: 20, padding: 8, color: '#fff', cursor: 'pointer' }}
+            {actions.map((action, i) => (
+              <button
+                key={i}
+                onClick={() => { setIsOpen(false); navigate(action.path); }}
+                style={{
+                  background: 'transparent', 
+                  border: 'none', 
+                  color: '#fff', 
+                  cursor: 'pointer',
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  padding: 0,
+                  opacity: 0.8,
+                  transition: 'opacity 200ms, transform 200ms',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
               >
-                <XIcon width={20} height={20} />
+                {action.icon}
               </button>
-            </div>
-
-            {/* Grid of Icons */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-              {actions.map((action, i) => (
-                <button
-                  key={i}
-                  onClick={() => { setIsOpen(false); navigate(action.path); }}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: '#111',
-                    border: '1px solid #1f1f1f',
-                    borderRadius: 16,
-                    padding: '16px 8px',
-                    gap: 10,
-                    cursor: 'pointer',
-                    position: 'relative',
-                  }}
-                >
-                  <div style={{ color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', height: 28 }}>
-                    {action.icon}
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{action.label}</div>
-                  
-                  {action.badge > 0 && (
-                    <div style={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 8,
-                      background: '#ef4444',
-                      color: '#fff',
-                      fontSize: 10,
-                      fontWeight: 900,
-                      padding: '2px 6px',
-                      borderRadius: 10,
-                      minWidth: 20,
-                      textAlign: 'center'
-                    }}>
-                      {action.badge}
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
-        </div>
+          <style>{`
+            @keyframes fade-in-scale {
+              from { opacity: 0; transform: translateY(-50%) scale(0.9); }
+              to { opacity: 1; transform: translateY(-50%) scale(1); }
+            }
+          `}</style>
+        </>
       )}
-
-      {/* Keyframes injected directly */}
-      <style>{`
-        @keyframes slide-down {
-          from { transform: translateY(-100%); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes pulse-glow {
-          0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-          70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-        }
-      `}</style>
     </>
   );
 }
