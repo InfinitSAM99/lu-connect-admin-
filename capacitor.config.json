@@ -1,6 +1,6 @@
 {
   "appId": "com.luconnect.admin",
-  "appName": "LU Connect Admin",
+  "appName": "LU Admin",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

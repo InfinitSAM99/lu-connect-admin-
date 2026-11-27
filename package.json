@@ -21,8 +21,10 @@
   },
   "devDependencies": {
     "@capacitor/android": "^8.5.2",
+    "@capacitor/assets": "^4.0.0",
     "@capacitor/cli": "^8.5.2",
     "@capacitor/core": "^8.5.2",
+    "@img/sharp-wasm32": "^0.35.5",
     "@vitejs/plugin-react": "^4.3.1",
     "vite": "^5.4.0"
   }
