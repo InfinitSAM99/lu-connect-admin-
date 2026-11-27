@@ -78,27 +78,33 @@ export function AuthProvider({ children }) {
   }, [profile]);
 
   const signInWithGoogle = async () => {
-    const isNative = Capacitor.isNativePlatform();
-    const redirectTo = isNative 
-      ? 'com.luconnect.admin://callback' 
-      : window.location.origin + '/dashboard';
+    try {
+      const isNative = Capacitor.isNativePlatform();
+      const redirectTo = isNative 
+        ? 'com.luconnect.admin://callback' 
+        : window.location.origin + '/dashboard';
 
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-        queryParams: { prompt: 'select_account' },
-        skipBrowserRedirect: isNative,
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: { prompt: 'select_account' },
+          skipBrowserRedirect: isNative,
+        }
+      });
+
+      if (error) {
+        return { error };
       }
-    });
 
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    if (isNative && data?.url) {
-      await Browser.open({ url: data.url });
+      if (isNative && data?.url) {
+        await Browser.open({ url: data.url });
+      }
+      
+      // Return an object so Login.jsx doesn't crash
+      return { error: null };
+    } catch (err) {
+      return { error: err };
     }
   };
 
