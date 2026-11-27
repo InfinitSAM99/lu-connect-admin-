@@ -119,41 +119,52 @@ export default function AIAssistant() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)' }}>
-      <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: '#000', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}>
+      
+      {/* Header - Native App Style */}
+      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, background: '#0a0a0a', borderBottom: '1px solid #222' }}>
+        <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
+          AI
+        </div>
         <div style={{ flex: 1 }}>
-          <h1 className="page-title">AI Assistant</h1>
-          <p className="page-subtitle">Ask questions about the platform, operations, or current stats</p>
+          <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#fff' }}>LU Connect Assistant</h1>
+          <p style={{ fontSize: 12, color: '#888', margin: 0 }}>Online & Ready</p>
         </div>
         {messages.length > 0 && (
-          <button className="btn btn-ghost" onClick={clearChat}>Clear</button>
+          <button onClick={clearChat} style={{ background: 'none', border: 'none', color: '#888', fontSize: 13, cursor: 'pointer' }}>Clear</button>
         )}
       </div>
 
+      {/* Chat Area - Full Screen */}
       <div
         ref={scrollRef}
         style={{
           flex: 1,
           overflowY: 'auto',
-          paddingBottom: 12,
+          padding: '16px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 12,
-          minHeight: 0,
+          gap: 20,
+          background: '#000'
         }}
       >
         {messages.length === 0 && (
-          <div>
-            <div style={{ fontSize: 14, color: 'var(--text-3)', marginBottom: 16 }}>
-              Ask me anything about LU CONNECT. I have the operations manual + a live stats snapshot.
-            </div>
-            <div style={{ display: 'grid', gap: 6 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>✨</div>
+            <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8, color: '#fff' }}>How can I help you today?</h2>
+            <p style={{ fontSize: 14, color: '#888', marginBottom: 32, maxWidth: 300 }}>
+              I have access to live stats and your operations manual.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 400 }}>
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s}
-                  className="btn"
                   onClick={() => send(s)}
-                  style={{ justifyContent: 'flex-start', textAlign: 'left', fontSize: 13 }}
+                  style={{ 
+                    background: '#111', border: '1px solid #222', color: '#eee', 
+                    padding: '14px 16px', borderRadius: 12, fontSize: 14, 
+                    textAlign: 'left', cursor: 'pointer' 
+                  }}
                 >
                   {s}
                 </button>
@@ -162,99 +173,79 @@ export default function AIAssistant() {
           </div>
         )}
 
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
-            }}
-          >
-            <div
-              style={{
-                maxWidth: '88%',
-                padding: '12px 14px',
-                borderRadius: 16,
+        {messages.map((m, i) => {
+          const isUser = m.role === 'user';
+          return (
+            <div key={i} style={{ display: 'flex', gap: 10, flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-end' }}>
+              <div style={{ 
+                width: 32, height: 32, borderRadius: '50%', flexShrink: 0, 
+                background: isUser ? '#333' : '#ef4444', 
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 'bold' 
+              }}>
+                {isUser ? 'ME' : 'AI'}
+              </div>
+              <div style={{
+                maxWidth: '78%',
+                padding: '12px 16px',
                 fontSize: 14,
-                lineHeight: 1.55,
-                whiteSpace: m.role === 'user' ? 'pre-wrap' : 'normal',
-                background: m.role === 'user' ? 'var(--brand)' : 'var(--surface-2)',
-                color: m.role === 'user' ? '#fff' : 'var(--text)',
-                borderBottomRightRadius: m.role === 'user' ? 4 : 16,
-                borderBottomLeftRadius: m.role === 'assistant' ? 4 : 16,
-              }}
-            >
-              {m.content}
+                lineHeight: 1.5,
+                whiteSpace: 'pre-wrap',
+                background: isUser ? '#ef4444' : '#1a1a1a',
+                color: '#fff',
+                borderRadius: 20,
+                borderBottomRightRadius: isUser ? 4 : 20,
+                borderBottomLeftRadius: isUser ? 20 : 4,
+              }}>
+                {m.content}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {sending && (
-          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div
-              style={{
-                padding: '10px 14px',
-                borderRadius: 16,
-                background: 'var(--surface-2)',
-                color: 'var(--text-3)',
-                fontSize: 14,
-                borderBottomLeftRadius: 4,
-              }}
-            >
-              Thinking…
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+             <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#ef4444', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 'bold' }}>AI</div>
+            <div style={{ padding: '12px 16px', borderRadius: 20, background: '#1a1a1a', color: '#888', fontSize: 14, borderBottomLeftRadius: 4 }}>
+              Thinking...
             </div>
           </div>
         )}
 
         {err && (
-          <div
-            style={{
-              background: 'var(--danger-soft)',
-              color: 'var(--danger)',
-              padding: 10,
-              borderRadius: 10,
-              fontSize: 13,
-            }}
-          >
+          <div style={{ background: '#3a1111', color: '#ef4444', padding: 12, borderRadius: 12, fontSize: 13, textAlign: 'center' }}>
             {err}
           </div>
         )}
       </div>
 
-      {stats && (
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--text-3)',
-            padding: '6px 0',
-            borderTop: '1px solid var(--border)',
-          }}
-        >
-          Snapshot: {stats.total_users} users · {stats.total_posts} posts · {stats.pending_approvals} pending approvals · {stats.pending_flags} flags · {stats.pending_reports} reports
-        </div>
-      )}
-
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          display: 'flex',
-          gap: 8,
-          paddingTop: 10,
-          borderTop: '1px solid var(--border)',
-        }}
-      >
-        <input
-          className="input"
-          placeholder="Ask about the platform…"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={sending}
-          style={{ flex: 1 }}
-        />
-        <button className="btn btn-primary" disabled={sending || !input.trim()}>
-          {sending ? '…' : 'Send'}
-        </button>
-      </form>
+      {/* Input Area - Fixed at Bottom */}
+      <div style={{ padding: '12px 16px', background: '#0a0a0a', borderTop: '1px solid #222', paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <input
+            placeholder="Message AI Assistant..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={sending}
+            style={{ 
+              flex: 1, padding: '14px 20px', borderRadius: 24, 
+              background: '#1a1a1a', border: '1px solid #333', 
+              color: '#fff', fontSize: 15, outline: 'none' 
+            }}
+          />
+          <button 
+            disabled={sending || !input.trim()}
+            style={{ 
+              width: 48, height: 48, borderRadius: 24, 
+              background: '#ef4444', color: '#fff', border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 20, cursor: input.trim() ? 'pointer' : 'not-allowed',
+              opacity: input.trim() ? 1 : 0.5
+            }}
+          >
+            ↑
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

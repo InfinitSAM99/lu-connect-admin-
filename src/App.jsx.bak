@@ -1,0 +1,99 @@
+import { useEffect, useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext.jsx';
+import { supabase } from './lib/supabase';
+import Layout from './components/Layout.jsx';
+import Splash from './components/Splash.jsx';
+import ErrorCatcher from './components/ErrorCatcher.jsx';
+import Login from './pages/Login.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import SecurityCenter from './pages/SecurityCenter.jsx';
+import RecoveryMessages from './pages/RecoveryMessages.jsx';
+import HelpDesk from './pages/HelpDesk.jsx';
+import Students from './pages/Students.jsx';
+import PendingApprovals from './pages/PendingApprovals.jsx';
+import Posts from './pages/Posts.jsx';
+import Comments from './pages/Comments.jsx';
+import Reports from './pages/Reports.jsx';
+import Moderation from './pages/Moderation.jsx';
+import Appeals from './pages/Appeals.jsx';
+import Settings from './pages/Settings.jsx';
+import AIAssistant from './pages/AIAssistant.jsx';
+import Announcements from './pages/Announcements.jsx';
+import Events from './pages/Events.jsx';
+import Groups from './pages/Groups.jsx';
+import Admins from './pages/Admins.jsx';
+import AuditLogs from './pages/AuditLogs.jsx';
+import Payments from './pages/Payments.jsx';
+import AdminCodes from './pages/AdminCodes.jsx';
+import Boosts from './pages/Boosts.jsx';
+import Visitors from './pages/Visitors.jsx';
+
+function AdminGuard({ children }) {
+  const { user, isAdmin, loading } = useAuth();
+  const [checking, setChecking] = useState(true);
+  const [hasSession, setHasSession] = useState(false);
+
+  useEffect(() => {
+    // Double-check session directly from storage if context is slow
+    supabase.auth.getSession().then(({ data }) => {
+      setHasSession(!!data.session);
+      setChecking(false);
+    });
+  }, [user]);
+
+  if (loading || checking) return <div className="state">Verifying access…</div>;
+  if (!user && !hasSession) return <Navigate to="/login" replace />;
+  if (user && !isAdmin) return (
+    <div className="state">
+      <h3>Access Denied</h3>
+      <p>You do not have permission to access LU CONNECT Admin.</p>
+    </div>
+  );
+  return children;
+}
+
+function AdminRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<AdminGuard><Layout /></AdminGuard>}>
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="security-center" element={<SecurityCenter />} />
+        <Route path="recovery-messages" element={<RecoveryMessages />} />
+        <Route path="help-desk" element={<HelpDesk />} />
+        <Route path="students" element={<Students />} />
+        <Route path="pending-approvals" element={<PendingApprovals />} />
+        <Route path="posts" element={<Posts />} />
+        <Route path="comments" element={<Comments />} />
+        <Route path="reports" element={<Reports />} />
+        <Route path="moderation" element={<Moderation />} />
+        <Route path="appeals" element={<Appeals />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="ai" element={<AIAssistant />} />
+        <Route path="announcements" element={<Announcements />} />
+        <Route path="events" element={<Events />} />
+        <Route path="groups" element={<Groups />} />
+        <Route path="admins" element={<Admins />} />
+        <Route path="audit-logs" element={<AuditLogs />} />
+        <Route path="payments" element={<Payments />} />
+        <Route path="admin-codes" element={<AdminCodes />} />
+        <Route path="boosts" element={<Boosts />} />
+        <Route path="visitors" element={<Visitors />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <Splash />
+      <ErrorCatcher>
+        <AdminRoutes />
+      </ErrorCatcher>
+    </>
+  );
+}

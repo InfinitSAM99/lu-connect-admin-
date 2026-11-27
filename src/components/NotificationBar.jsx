@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { 
   AlertTriangleIcon, 
@@ -14,6 +14,8 @@ import {
 export default function NotificationBar() {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const isDashboard = location.pathname === '/' || location.pathname === '/dashboard';
   const [counts, setCounts] = useState({
     approvals: 0, appeals: 0, payments: 0, reports: 0,
     helpdesk: 0, recovery: 0, security: 0, boosts: 0
@@ -53,7 +55,7 @@ export default function NotificationBar() {
     { id: 'reports', icon: <FileTextIcon width={22} height={22} />, badge: counts.reports, path: '/moderation' },
     { id: 'helpdesk', icon: <MessageIcon width={22} height={22} />, badge: counts.helpdesk, path: '/help-desk' },
     { id: 'recovery', icon: <ClockIcon width={22} height={22} />, badge: counts.recovery, path: '/recovery-messages' },
-    { id: 'security', icon: <ShieldCheckIcon width={22} height={22} />, badge: counts.security, path: '/security-center' },
+    { id: 'security', icon: <ShieldCheckIcon width={22} height={22} />, badge: counts.security, path: '/security-threats' },
     { id: 'boosts', icon: <RocketIcon width={22} height={22} />, badge: counts.boosts, path: '/boosts' },
   ];
 
@@ -85,11 +87,11 @@ export default function NotificationBar() {
           <button
             key={item.id}
             onClick={() => { setIsOpen(false); navigate(item.path); }}
-            style={{ position: 'relative', background: 'transparent', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}
+            style={{ position: 'relative', background: 'transparent', border: 'none', color: '#9ca3af', cursor: 'pointer', alignItems: 'center', justifyContent: 'center', padding: 8 }}
           >
             {item.icon}
             {item.badge > 0 && (
-              <div style={{ position: 'absolute', top: 0, right: 0, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 900, minWidth: 16, height: 16, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', border: '2px solid #0a0a0a' }}>
+              <div style={{ position: 'absolute', top: 0, right: 0, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 900, minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', padding: '0 4px', border: '2px solid #0a0a0a' }}>
                 {item.badge > 99 ? '99+' : item.badge}
               </div>
             )}
@@ -100,10 +102,10 @@ export default function NotificationBar() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          position: 'fixed', bottom: 90, right: 24,
+          position: 'fixed', bottom: 90, right: 24, display: isDashboard ? 'flex' : 'none',
           width: 60, height: 60, borderRadius: 30,
           background: '#ef4444', color: '#fff', border: 'none',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 8px 32px rgba(239, 68, 68, 0.4)',
           zIndex: 1502, cursor: 'pointer',
           transition: 'transform 300ms',
@@ -116,7 +118,7 @@ export default function NotificationBar() {
         </svg>
         
         {totalUnread > 0 && !isOpen && (
-          <div style={{ position: 'absolute', top: -4, right: -4, background: '#fff', color: '#ef4444', fontSize: 12, fontWeight: 900, width: 24, height: 24, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #ef4444' }}>
+          <div style={{ position: 'absolute', top: -4, right: -4, background: '#fff', color: '#ef4444', fontSize: 12, fontWeight: 900, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', border: '2px solid #ef4444' }}>
             {totalUnread > 99 ? '99+' : totalUnread}
           </div>
         )}

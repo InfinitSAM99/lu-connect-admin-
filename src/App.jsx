@@ -27,6 +27,7 @@ import AuditLogs from './pages/AuditLogs.jsx';
 import Payments from './pages/Payments.jsx';
 import AdminCodes from './pages/AdminCodes.jsx';
 import Boosts from './pages/Boosts.jsx';
+import OtpManager from './pages/OtpManager.jsx';
 import Visitors from './pages/Visitors.jsx';
 
 function AdminGuard({ children }) {
@@ -82,6 +83,7 @@ function AdminRoutes() {
         <Route path="payments" element={<Payments />} />
         <Route path="admin-codes" element={<AdminCodes />} />
         <Route path="boosts" element={<Boosts />} />
+        <Route path="otp-manager" element={<OtpManager />} />
         <Route path="visitors" element={<Visitors />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

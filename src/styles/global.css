@@ -47,7 +47,14 @@
 
 * { box-sizing: border-box; }
 
-html, body, #root { height: 100%; }
+html, body, #root { 
+  height: 100%; 
+  margin: 0; 
+  padding: 0; 
+  background-color: #000;
+  /* This tells the browser to use the full height including under the status bar */
+  height: 100dvh; 
+}
 
 body {
   margin: 0;

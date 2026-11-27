@@ -26,8 +26,7 @@ const SECTIONS = [
     links: [
       { special: 'reports', label: 'Reports', icon: AlertTriangleIcon },
       { to: '/pending-approvals', label: 'Pending Approvals', icon: ClockIcon },
-      { to: '/security-center', label: 'Security Center', icon: ShieldCheckIcon },
-      { to: '/security-threats', label: 'Login Threats', icon: AlertTriangleIcon },
+      { to: '/security-threats', label: 'Security Center', icon: ShieldCheckIcon },
       { to: '/recovery-messages', label: 'Recovery Messages', icon: MessageIcon },
       { to: '/help-desk', label: 'Help Desk', icon: MessageIcon },
       { to: '/appeals', label: 'Appeals', icon: ShieldCheckIcon },
@@ -65,8 +64,7 @@ const SECTIONS = [
 const PAGE_TITLES = {
   '/dashboard': 'Dashboard',
   '/visitors': 'Visitors',
-  '/security-center': 'Security Center',
-  '/security-threats': 'Login Threats',
+  '/security-threats': 'Security Center',
   '/recovery-messages': 'Recovery Messages',
   '/help-desk': 'Help Desk',
   '/ai': 'AI Assistant',
@@ -97,6 +95,9 @@ const BOTTOM_NAV = [
 ];
 
 export default function Layout() {
+  const location = useLocation();
+  const isAIPage = location.pathname === '/ai' || location.pathname === '/ai-assistant';
+
   // Realtime diagnostic — logs transport type once per session.
   useEffect(() => {
     probeRealtimeTransport();
@@ -135,7 +136,6 @@ export default function Layout() {
 
   const { profile, signOut, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [moreDragY, setMoreDragY] = useState(0);
@@ -348,7 +348,7 @@ export default function Layout() {
       </div>
 
       {/* Mobile bottom nav */}
-      <nav className="admin-bottom-nav">
+      <nav className="admin-bottom-nav" style={{ display: isAIPage ? 'none' : 'flex' }}>
         {BOTTOM_NAV.map((item) => {
           const Icon = item.icon;
           const isMore = item.to === '__more__';

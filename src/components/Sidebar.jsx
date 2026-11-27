@@ -101,7 +101,7 @@ export default function Sidebar() {
     { id: 'reports', icon: <FileTextIcon width={22} height={22} />, badge: counts.reports, path: '/reports', label: 'Reports' },
     { id: 'helpdesk', icon: <MessageIcon width={22} height={22} />, badge: counts.helpdesk, path: '/help-desk', label: 'Help Desk' },
     { id: 'recovery', icon: <LockIcon width={22} height={22} />, badge: counts.recovery, path: '/recovery-messages', label: 'Recovery' },
-    { id: 'security', icon: <AlertCircleIcon width={22} height={22} />, badge: counts.security, path: '/security-center', label: 'Security' },
+    { id: 'security', icon: <AlertCircleIcon width={22} height={22} />, badge: counts.security, path: '/security-threats', label: 'Security' },
     { id: 'boosts', icon: <RocketIcon width={22} height={22} />, badge: counts.boosts, path: '/boosts', label: 'Boosts' },
   ];
 
