@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { supabase } from '../lib/supabase';
 import { roleNameOf, roleLevelOf } from '../lib/roles';
@@ -32,6 +33,40 @@ export function AuthProvider({ children }) {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  // ── DEEP LINK LISTENER ──────────────────────────────────────
+  useEffect(() => {
+    let listenerHandle = null;
+    const setupListener = async () => {
+      listenerHandle = await CapApp.addListener('appUrlOpen', async (event) => {
+        const url = event.url;
+        
+        if (url.includes('callback') || url.includes('auth-callback') || url.includes('access_token')) {
+          try { await Browser.close(); } catch (e) {}
+
+          const hashIndex = url.indexOf('#');
+          const queryIndex = url.indexOf('?');
+          
+          let paramsString = '';
+          if (hashIndex > -1) paramsString = url.substring(hashIndex + 1);
+          else if (queryIndex > -1) paramsString = url.substring(queryIndex + 1);
+
+          const params = new URLSearchParams(paramsString);
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+
+          if (accessToken && refreshToken) {
+            await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+          } else {
+            const code = params.get('code');
+            if (code) await supabase.auth.exchangeCodeForSession(code);
+          }
+        }
+      });
+    };
+    setupListener();
+    return () => { if (listenerHandle) listenerHandle.remove(); };
   }, []);
 
   const loadProfile = async (userId) => {
@@ -77,32 +112,22 @@ export function AuthProvider({ children }) {
     return () => clearInterval(interval);
   }, [profile]);
 
+  // ── LOGIN ACTION ─────────────────────────────────────────────
   const signInWithGoogle = async () => {
     try {
-      const isNative = Capacitor.isNativePlatform();
-      const redirectTo = isNative 
-        ? 'com.luconnect.admin://callback' 
-        : window.location.origin + '/dashboard';
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo,
-          queryParams: { prompt: 'select_account' },
-          skipBrowserRedirect: isNative,
-        }
-      });
-
-      if (error) {
+      if (Capacitor.isNativePlatform()) {
+        // ADDED ?app=admin SO THE WEBSITE KNOWS TO REDIRECT TO THE ADMIN APP
+        const webUrl = "https://lu-connect-website-sigma.vercel.app/login?app=admin";
+        
+        await Browser.open({ url: webUrl });
+        return { error: null };
+      } else {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: window.location.origin + '/dashboard' }
+        });
         return { error };
       }
-
-      if (isNative && data?.url) {
-        await Browser.open({ url: data.url });
-      }
-      
-      // Return an object so Login.jsx doesn't crash
-      return { error: null };
     } catch (err) {
       return { error: err };
     }
