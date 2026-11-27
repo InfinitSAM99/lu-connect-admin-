@@ -14,6 +14,54 @@ export function AuthProvider({ children }) {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isBanned, setIsBanned] = useState(false);
 
+  // ── Handle incoming auth URLs (tokens from web login) ───────
+  const handleAuthUrl = async (url) => {
+    if (!url) return;
+    if (!url.includes('access_token') && !url.includes('code=')) return;
+
+    try { await Browser.close(); } catch (e) {}
+
+    // Parse params from both # and ?
+    let paramsString = '';
+    if (url.includes('#')) paramsString = url.split('#')[1];
+    else if (url.includes('?')) paramsString = url.split('?')[1];
+
+    const params = new URLSearchParams(paramsString);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const code = params.get('code');
+
+    if (accessToken && refreshToken) {
+      const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      if (error) console.error('setSession error:', error.message);
+    } else if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) console.error('exchangeCode error:', error.message);
+    }
+  };
+
+  useEffect(() => {
+    // 1. Listen for URL opens (when app is in foreground/background)
+    let listenerHandle = null;
+    const setup = async () => {
+      listenerHandle = await CapApp.addListener('appUrlOpen', async (event) => {
+        await handleAuthUrl(event.url);
+      });
+
+      // 2. Handle initial URL (when app is launched fresh from a link)
+      const launch = await CapApp.getLaunchUrl();
+      if (launch?.url) await handleAuthUrl(launch.url);
+    };
+    setup();
+
+    // 3. Handle web-based deep links (Capacitor converts custom scheme to web url sometimes)
+    const checkWebUrl = () => handleAuthUrl(window.location.href);
+    checkWebUrl();
+
+    return () => { if (listenerHandle) listenerHandle.remove(); };
+  }, []);
+
+  // ── Session listener ─────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -33,40 +81,6 @@ export function AuthProvider({ children }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
-
-  // ── DEEP LINK LISTENER ──────────────────────────────────────
-  useEffect(() => {
-    let listenerHandle = null;
-    const setupListener = async () => {
-      listenerHandle = await CapApp.addListener('appUrlOpen', async (event) => {
-        const url = event.url;
-        
-        if (url.includes('callback') || url.includes('auth-callback') || url.includes('access_token')) {
-          try { await Browser.close(); } catch (e) {}
-
-          const hashIndex = url.indexOf('#');
-          const queryIndex = url.indexOf('?');
-          
-          let paramsString = '';
-          if (hashIndex > -1) paramsString = url.substring(hashIndex + 1);
-          else if (queryIndex > -1) paramsString = url.substring(queryIndex + 1);
-
-          const params = new URLSearchParams(paramsString);
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-
-          if (accessToken && refreshToken) {
-            await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-          } else {
-            const code = params.get('code');
-            if (code) await supabase.auth.exchangeCodeForSession(code);
-          }
-        }
-      });
-    };
-    setupListener();
-    return () => { if (listenerHandle) listenerHandle.remove(); };
   }, []);
 
   const loadProfile = async (userId) => {
@@ -112,13 +126,11 @@ export function AuthProvider({ children }) {
     return () => clearInterval(interval);
   }, [profile]);
 
-  // ── LOGIN ACTION ─────────────────────────────────────────────
+  // ── Login Action ────────────────────────────────────────────
   const signInWithGoogle = async () => {
     try {
       if (Capacitor.isNativePlatform()) {
-        // ADDED ?app=admin SO THE WEBSITE KNOWS TO REDIRECT TO THE ADMIN APP
         const webUrl = "https://lu-connect-website-sigma.vercel.app/login?app=admin";
-        
         await Browser.open({ url: webUrl });
         return { error: null };
       } else {
