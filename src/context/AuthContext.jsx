@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 import { supabase } from '../lib/supabase';
-import { realtime } from '../lib/realtime';
 import { roleNameOf, roleLevelOf } from '../lib/roles';
 
 const AuthContext = createContext(null);
@@ -50,7 +51,6 @@ export function AuthProvider({ children }) {
           setIsSuperAdmin(data.roles?.name === 'super_admin');
           setIsBanned(false);
           
-          // UPDATE ADMIN PRESENCE HERE
           if (data.roles?.level >= 1) {
             await supabase.from('admin_presence').upsert({ 
               id: userId, 
@@ -66,7 +66,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Heartbeat for Admin Presence
   useEffect(() => {
     if (!profile?.id || profile.roles?.level < 1) return;
     const interval = setInterval(() => {
@@ -74,18 +73,33 @@ export function AuthProvider({ children }) {
         id: profile.id, 
         last_seen: new Date().toISOString() 
       }).then();
-    }, 30000); // Update every 30s
+    }, 30000);
     return () => clearInterval(interval);
   }, [profile]);
 
   const signInWithGoogle = async () => {
-    return supabase.auth.signInWithOAuth({
+    const isNative = Capacitor.isNativePlatform();
+    const redirectTo = isNative 
+      ? 'com.luconnect.admin://callback' 
+      : window.location.origin + '/dashboard';
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin + '/dashboard',
-        queryParams: { prompt: 'select_account' }
+        redirectTo,
+        queryParams: { prompt: 'select_account' },
+        skipBrowserRedirect: isNative,
       }
     });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    if (isNative && data?.url) {
+      await Browser.open({ url: data.url });
+    }
   };
 
   const signOut = async () => {

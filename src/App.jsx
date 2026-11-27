@@ -6,6 +6,7 @@ import { PAGE_ACCESS } from './lib/roles';
 import Layout from './components/Layout.jsx';
 import Splash from './components/Splash.jsx';
 import ErrorCatcher from './components/ErrorCatcher.jsx';
+import DeepLinkListener from './components/DeepLinkListener.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import SecurityThreats from './pages/SecurityThreats.jsx';
@@ -37,12 +38,10 @@ import TeamChat from './pages/TeamChat.jsx';
 
 function AdminGuard({ children }) {
   const { user, loading, isModerator, isBanned } = useAuth();
-  
   if (loading) return <div className="state">Verifying access…</div>;
   if (isBanned) return <Navigate to="/banned" replace />;
   if (!user) return <Navigate to="/login" replace />;
   if (!isModerator) return <NotAuthorized />;
-  
   return children;
 }
 
@@ -62,7 +61,6 @@ function AdminRoutes() {
       <Route path="/" element={<AdminGuard><Layout /></AdminGuard>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         
-        {/* Moderator+ */}
         <Route path="dashboard" element={<RoleGuard routePath="dashboard"><Dashboard /></RoleGuard>} />
         <Route path="moderation" element={<RoleGuard routePath="moderation"><Moderation /></RoleGuard>} />
         <Route path="reports" element={<RoleGuard routePath="reports"><Reports /></RoleGuard>} />
@@ -72,11 +70,9 @@ function AdminRoutes() {
         <Route path="help-desk" element={<RoleGuard routePath="help-desk"><HelpDesk /></RoleGuard>} />
         <Route path="recovery-messages" element={<RoleGuard routePath="recovery-messages"><RecoveryMessages /></RoleGuard>} />
         
-        {/* Team Chat */}
         <Route path="team-chat" element={<RoleGuard routePath="team-chat"><MessagesList /></RoleGuard>} />
         <Route path="team-chat/:id" element={<RoleGuard routePath="team-chat"><TeamChat /></RoleGuard>} />
 
-        {/* Admin+ */}
         <Route path="students" element={<RoleGuard routePath="students"><Students /></RoleGuard>} />
         <Route path="pending-approvals" element={<RoleGuard routePath="pending-approvals"><PendingApprovals /></RoleGuard>} />
         <Route path="security-threats" element={<RoleGuard routePath="security-threats"><SecurityThreats /></RoleGuard>} />
@@ -88,7 +84,6 @@ function AdminRoutes() {
         <Route path="boosts" element={<RoleGuard routePath="boosts"><Boosts /></RoleGuard>} />
         <Route path="audit-logs" element={<RoleGuard routePath="audit-logs"><AuditLogs /></RoleGuard>} />
 
-        {/* Super admin only */}
         <Route path="settings" element={<RoleGuard routePath="settings"><Settings /></RoleGuard>} />
         <Route path="payments" element={<RoleGuard routePath="payments"><Payments /></RoleGuard>} />
         <Route path="admins" element={<RoleGuard routePath="admins"><Admins /></RoleGuard>} />
@@ -109,6 +104,7 @@ export default function App() {
 
   return (
     <>
+      <DeepLinkListener />
       <Splash />
       <ErrorCatcher>
         <AdminRoutes />
