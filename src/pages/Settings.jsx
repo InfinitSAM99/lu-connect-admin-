@@ -203,7 +203,7 @@ export default function Settings() {
   const runBotTick = async () => {
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke('bot-tick', { body: {} });
+      const { data, error } = await supabase.functions.invoke('deliver-boosts', { body: {} });
       if (error) throw error;
       showToast('Tick ran');
       await load();

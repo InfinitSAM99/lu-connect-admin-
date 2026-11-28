@@ -38,7 +38,7 @@ function purposeLabel(purpose, metadata) {
 
 function timeAgo(date) {
   if (!date) return '';
-  const s = Math.floor((Date.now() - new Date(date)) / 1000);
+  const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
   if (s < 60) return 'just now';
   if (s < 3600) return Math.floor(s / 60) + 'm ago';
   if (s < 86400) return Math.floor(s / 3600) + 'h ago';
@@ -67,6 +67,9 @@ export default function Payments() {
 
   // 0 = nothing checked. 1 = payment checked. 2 = user request checked. 3 = admin review.
   const [reviewProgress, setReviewProgress] = useState(0);
+  
+  // 🔥 NEW: Real-time boost state
+  const [liveBoost, setLiveBoost] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -82,10 +85,30 @@ export default function Payments() {
 
   useEffect(() => { load(); }, []);
 
+  // 🔥 NEW: Fetch and subscribe to the linked boost
+  useEffect(() => {
+    if (!active) return;
+
+    const fetchLiveBoost = async () => {
+      const { data } = await supabase.from('boosts').select('*').eq('payment_id', active.id).maybeSingle();
+      setLiveBoost(data);
+    };
+    fetchLiveBoost();
+
+    const channel = supabase.channel(`payment-boost-${active.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'boosts', filter: `payment_id=eq.${active.id}` }, (payload) => {
+        setLiveBoost(payload.new);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [active]);
+
   const openPayment = (p) => {
     setActive(p);
     setRejectReason('');
     setShowRejectInput(false);
+    setLiveBoost(null);
     // If already approved/rejected, we show all steps done.
     // If pending, we start at 0 (nothing checked).
     setReviewProgress(p.status === 'pending' ? 0 : 3);
@@ -95,6 +118,7 @@ export default function Payments() {
     setActive(null);
     setRejectReason('');
     setShowRejectInput(false);
+    setLiveBoost(null);
   };
 
   const approveLinkedBoost = async (payment) => {
@@ -238,34 +262,32 @@ export default function Payments() {
       state: isApproved || isRejected ? 'done' : reviewProgress === 2 ? 'current' : 'pending',
     });
 
-    // Step 4+: Outcome
+    // 🔥 NEW: Dynamic Live Tracking
     if (active.purpose === 'verify') {
       steps.push({
         label: 'Identity Verified',
         description: isApproved ? 'Blue checkmark applied to profile' : 'Blue checkmark will be applied',
         state: isApproved ? 'done' : 'pending',
       });
-    } else if (active.purpose === 'post_boost') {
+    } else if (active.purpose === 'post_boost' || active.purpose === 'followers') {
+      const delivered = liveBoost?.delivered || 0;
+      const total = liveBoost?.quantity || 0;
+      const pct = total > 0 ? Math.min(100, Math.round((delivered / total) * 100)) : 0;
+      
+      const label = active.purpose === 'post_boost' ? 'Boost Activated' : 'Followers Delivering';
+      
       steps.push({
-        label: 'Boost Activated',
-        description: isApproved ? 'Delivery started' : 'Boost will start delivery',
-        state: isApproved ? 'done' : 'pending',
+        label: label,
+        description: isApproved 
+          ? `Delivering... ${delivered} / ${total} (${pct}%)` 
+          : 'Will begin after approval',
+        state: isApproved ? (pct >= 100 ? 'done' : 'current') : 'pending',
       });
-      steps.push({
-        label: 'Delivery in Progress',
-        description: isApproved ? 'Real-time delivery tracking' : 'Delivery not started',
-        state: isApproved ? 'current' : 'pending',
-      });
-    } else {
-      steps.push({
-        label: 'Followers Delivering',
-        description: isApproved ? 'Followers being added' : 'Will begin after approval',
-        state: isApproved ? 'done' : 'pending',
-      });
+      
       steps.push({
         label: 'Delivery Complete',
-        description: isApproved ? 'Package fully delivered' : 'Pending',
-        state: 'pending',
+        description: pct >= 100 ? 'Package fully delivered' : 'Pending',
+        state: pct >= 100 ? 'done' : 'pending',
       });
     }
 

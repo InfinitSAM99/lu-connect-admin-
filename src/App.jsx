@@ -29,6 +29,7 @@ import AuditLogs from './pages/AuditLogs.jsx';
 import Payments from './pages/Payments.jsx';
 import AdminCodes from './pages/AdminCodes.jsx';
 import Boosts from './pages/Boosts.jsx';
+import HallOfFameAdmin from './pages/HallOfFameAdmin.jsx';
 import OtpManager from './pages/OtpManager.jsx';
 import Visitors from './pages/Visitors.jsx';
 import Pricing from './pages/Pricing.jsx';
@@ -83,6 +84,7 @@ function AdminRoutes() {
         <Route path="visitors" element={<RoleGuard routePath="visitors"><Visitors /></RoleGuard>} />
         <Route path="ai" element={<RoleGuard routePath="ai"><AIAssistant /></RoleGuard>} />
         <Route path="boosts" element={<RoleGuard routePath="boosts"><Boosts /></RoleGuard>} />
+            <Route path="hall-of-fame-admin" element={<HallOfFameAdmin />} />
         <Route path="audit-logs" element={<RoleGuard routePath="audit-logs"><AuditLogs /></RoleGuard>} />
 
         <Route path="settings" element={<RoleGuard routePath="settings"><Settings /></RoleGuard>} />

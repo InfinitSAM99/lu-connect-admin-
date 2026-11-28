@@ -39,6 +39,8 @@ const SECTIONS = [
   ]},
   { title: 'System', links: [
     
+    { to: '/boosts', label: 'Boosts', icon: RocketIcon, role: 'admin' },
+    { to: '/hall-of-fame-admin', label: 'Hall of Fame', icon: ShieldCheckIcon, role: 'super_admin' },
     { to: '/payments', label: 'Payments', icon: CreditCardIcon, role: 'super_admin' },
     { to: '/pricing', label: 'Pricing & Peaks', icon: CreditCardIcon, role: 'super_admin' },
     { to: '/admin-codes', label: 'Access Codes', icon: ShieldCheckIcon, role: 'super_admin' },
